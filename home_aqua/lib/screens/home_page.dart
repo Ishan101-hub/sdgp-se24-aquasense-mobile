@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/today_card.dart';
+import '../widgets/water_status_card.dart'; // ← new import
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -26,29 +27,9 @@ class HomePage extends StatelessWidget {
 
                   const SizedBox(width: 12),
 
-                  // Water Status Card placeholder (right side)
+                  // Water Status Card (right side)
                   Expanded(
-                    child: Container(
-                      height: 180,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.blue.withOpacity(0.08),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: const Center(
-                        child: Text(
-                          'Water Status\n(coming soon)',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ),
-                    ),
+                    child: WaterStatusCard(), // ← replaced placeholder
                   ),
 
                 ],

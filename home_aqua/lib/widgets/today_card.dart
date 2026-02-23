@@ -2,21 +2,21 @@ import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
 class TodayCard extends StatelessWidget {
-  final double dailyAveragePercent;
+  // Fixed test values for now
+  // When backend ready, just change these numbers
   final double litresUsed;
-  final double dailyAverageLitres; // full average per day (eg: 450 litres)
+  final double dailyAverageLitres;
+  final double dailyAveragePercent;
 
   const TodayCard({
     super.key,
-    this.dailyAveragePercent = 48,    // test value
-    this.litresUsed = 220,            // test value
-    this.dailyAverageLitres = 450,    // test value (220 is 48% of 450)
+    this.litresUsed = 220,         // test value
+    this.dailyAverageLitres = 450, // test value
+    this.dailyAveragePercent = 48, // test value
   });
 
   @override
   Widget build(BuildContext context) {
-    // Calculate how much of the circle to fill
-    // Example: 220 / 450 = 0.48 means 48% filled
     double progress = (litresUsed / dailyAverageLitres).clamp(0.0, 1.0);
 
     return Container(
@@ -51,49 +51,45 @@ class TodayCard extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // ── PART 1.4: Circular loading bar with 220 Litres inside ──
+          // ── Circular loading bar with 220 Litres inside ──
           SizedBox(
             width: 130,
             height: 130,
             child: Stack(
-              // Stack means put things on TOP of each other
               alignment: Alignment.center,
               children: [
 
-                // ── BACKGROUND CIRCLE (grey, always full) ──
+                // Grey background circle
                 SizedBox(
                   width: 130,
                   height: 130,
                   child: CustomPaint(
                     painter: _CircularBarPainter(
-                      progress: 1.0,             // always full circle
-                      color: const Color(0xFFE0E0E0), // grey color
+                      progress: 1.0,
+                      color: const Color(0xFFE0E0E0),
                       strokeWidth: 10,
                     ),
                   ),
                 ),
 
-                // ── FOREGROUND CIRCLE (navy blue, fills based on litres) ──
+                // Navy blue progress circle
                 SizedBox(
                   width: 130,
                   height: 130,
                   child: CustomPaint(
                     painter: _CircularBarPainter(
-                      progress: progress,            // 0.0 to 1.0
-                      color: const Color(0xFF1A1A6E), // navy blue
+                      progress: progress,
+                      color: const Color(0xFF1A1A6E),
                       strokeWidth: 10,
                     ),
                   ),
                 ),
 
-                // ── TEXT INSIDE CIRCLE (220 Litres) ──
-                // PART 1.3 text now sits inside the circle
+                // 220 Litres text inside circle
                 RichText(
                   textAlign: TextAlign.center,
                   text: TextSpan(
                     children: [
-
-                      // Big number "220"
                       TextSpan(
                         text: '${litresUsed.toInt()}',
                         style: const TextStyle(
@@ -102,8 +98,6 @@ class TodayCard extends StatelessWidget {
                           color: Color(0xFF1A1A6E),
                         ),
                       ),
-
-                      // Small word "Litres" on new line
                       const TextSpan(
                         text: '\nLitres',
                         style: TextStyle(
@@ -112,7 +106,6 @@ class TodayCard extends StatelessWidget {
                           fontWeight: FontWeight.w400,
                         ),
                       ),
-
                     ],
                   ),
                 ),
@@ -123,7 +116,7 @@ class TodayCard extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // ── PART 1.2: "48% of daily average" text ──
+          // ── 48% of daily average ──
           Text(
             '${dailyAveragePercent.toInt()}% of daily average',
             style: const TextStyle(
@@ -138,13 +131,11 @@ class TodayCard extends StatelessWidget {
   }
 }
 
-
-// ── CUSTOM PAINTER: This draws the circular arc ──────────────────
-// Think of this like a drawing tool that draws the circle shape
+// ── CUSTOM PAINTER ──
 class _CircularBarPainter extends CustomPainter {
-  final double progress;   // how much to fill: 0.0 = empty, 1.0 = full
-  final Color color;       // what color to draw
-  final double strokeWidth; // how thick the circle line is
+  final double progress;
+  final Color color;
+  final double strokeWidth;
 
   _CircularBarPainter({
     required this.progress,
@@ -157,33 +148,30 @@ class _CircularBarPainter extends CustomPainter {
     final Paint paint = Paint()
       ..color = color
       ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke  // only draw the outline, not filled
-      ..strokeCap = StrokeCap.round;  // rounded ends of the arc
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
 
     final double centerX = size.width / 2;
     final double centerY = size.height / 2;
     final double radius = (size.width - strokeWidth) / 2;
 
-    // startAngle: where the arc starts
-    // -140 degrees means it starts from bottom left (like your screenshot)
     const double startAngle = 140 * math.pi / 180;
-
-    // sweepAngle: how far the arc goes
-    // 260 degrees total sweep (not full circle, open at bottom)
     final double sweepAngle = 260 * math.pi / 180 * progress;
 
     canvas.drawArc(
-      Rect.fromCircle(center: Offset(centerX, centerY), radius: radius),
+      Rect.fromCircle(
+        center: Offset(centerX, centerY),
+        radius: radius,
+      ),
       startAngle,
       sweepAngle,
-      false, // false = do not connect to center (just arc)
+      false,
       paint,
     );
   }
 
   @override
   bool shouldRepaint(_CircularBarPainter oldDelegate) {
-    // Repaint only if something changed
     return oldDelegate.progress != progress ||
            oldDelegate.color != color;
   }
