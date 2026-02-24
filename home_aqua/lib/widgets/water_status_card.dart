@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 
 class WaterStatusCard extends StatelessWidget {
-  const WaterStatusCard({super.key});
+  // Test value for now
+  // When backend is ready, replace this with real value
+  final double flowRate;
+
+  const WaterStatusCard({
+    super.key,
+    this.flowRate = 23.1, // test value (L/min)
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -37,31 +44,47 @@ class WaterStatusCard extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // ── PART 2.2: Circle with text inside ──
+          // ── Circle with 23.1 L/min inside ──
           Container(
             width: 110,
             height: 110,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,       // perfect circle
+              shape: BoxShape.circle,
               border: Border.all(
-                color: const Color(0xFF1A1A6E), // navy blue border
-                width: 4,                        // border thickness
+                color: const Color(0xFF1A1A6E),
+                width: 4,
               ),
-              color: Colors.white,              // white inside
+              color: Colors.white,
             ),
-            child: const Center(
-              child: Text(
-                // placeholder text for now
-                // Part 2.3 will add real value here
-                '- -\nL/min',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1A1A6E),
-                  height: 1.4,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+
+                // ── PART 2.3: Real flow rate value ──
+                // Big number (23.1)
+                Text(
+                  flowRate.toStringAsFixed(1),
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1A1A6E),
+                    height: 1.0,
+                  ),
                 ),
-              ),
+
+                const SizedBox(height: 2),
+
+                // Small "L/min" text below number
+                const Text(
+                  'L/min',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF1A1A6E),
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+
+              ],
             ),
           ),
 
