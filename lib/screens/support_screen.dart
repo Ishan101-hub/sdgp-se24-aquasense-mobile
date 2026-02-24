@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+// Importing the detail screens
+import 'iot_connectivity_screen.dart';
+// import 'installation_guide_screen.dart';
+// import 'nwsdb_coordination_screen.dart';
+// import 'user_manual_screen.dart';
 
 class SupportScreen extends StatelessWidget {
   const SupportScreen({super.key});
@@ -107,12 +112,32 @@ class SupportScreen extends StatelessWidget {
               ),
             ),
 
-            // Support List
-            _buildSupportTile(Icons.wifi, "IoT Device Connectivity"),
-            _buildSupportTile(Icons.plumbing, "Installation Guide"),
-            _buildSupportTile(Icons.account_balance, "NWSDB Coordination"),
-            _buildSupportTile(Icons.info_outline, "App User Manual"),
-            
+            // Support List linked to respective screens
+            _buildSupportTile(
+              context,
+              Icons.wifi,
+              "IoT Device Connectivity",
+              IoTConnectivityScreen(),
+            ),
+
+            // _buildSupportTile(
+            //   context,
+            //   Icons.plumbing,
+            //   "Installation Guide",
+            //   //InstallationGuideScreen(),
+            // ),
+            // _buildSupportTile(
+            //   context,
+            //   Icons.account_balance,
+            //   "NWSDB Coordination",
+            //   //NWSDBCoordinationScreen(),
+            // ),
+            // _buildSupportTile(
+            //   context,
+            //   Icons.info_outline,
+            //   "App User Manual",
+            //   UserManualScreen(),
+            // ),
             const SizedBox(height: 30),
           ],
         ),
@@ -120,7 +145,13 @@ class SupportScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildContactCard(BuildContext context, IconData icon, String title, String subtitle, Color color) {
+  Widget _buildContactCard(
+    BuildContext context,
+    IconData icon,
+    String title,
+    String subtitle,
+    Color color,
+  ) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(15),
@@ -155,12 +186,25 @@ class SupportScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSupportTile(IconData icon, String title) {
+  // Updated to include Navigation logic
+  Widget _buildSupportTile(
+    BuildContext context,
+    IconData icon,
+    String title,
+    Widget destination,
+  ) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: ListTile(
         leading: Icon(icon, color: const Color(0xFF0A1B6F)),
@@ -169,7 +213,13 @@ class SupportScreen extends StatelessWidget {
           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
         ),
         trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-        onTap: () {},
+        onTap: () {
+          // Navigation to the detail screen
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => destination),
+          );
+        },
       ),
     );
   }
