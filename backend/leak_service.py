@@ -5,9 +5,9 @@ import logging
 from datetime import datetime
 
 from sqlalchemy import select
-from app.database import AsyncSessionLocal
-from app.models import Device, Event, ValveLog
-from app.config import settings
+from database import AsyncSessionLocal
+from models import Device, Event, ValveLog
+from config import settings
 
 logger = logging.getLogger("aquasense.leak")
 

@@ -1,4 +1,4 @@
-# app/main.py
+# main.py
 # AquaSense v2 – FastAPI application entry point
 
 import asyncio
@@ -9,12 +9,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.database import engine
-from app.models import Base
-from app.mqtt_service import start_mqtt_listener, periodic_flush
-from app.aggregation import schedule_aggregation
-from app.routers import auth_router, analytics_router, devices_router
-from app.routers.devices_router import set_publish_queue
+from database import engine
+from models import Base
+from mqtt_service import start_mqtt_listener, periodic_flush
+from aggregation import schedule_aggregation
+from auth_router import router as auth_router
+from analytics_router import router as analytics_router
+from device_router import router as device_router
+from device_router import set_publish_queue
 
 logging.basicConfig(
     level=logging.INFO,
@@ -103,10 +105,9 @@ app.add_middleware(
     max_age=600,
 )
 
-app.include_router(auth_router.router)
-app.include_router(devices_router.router)
-app.include_router(analytics_router.router)
-
+app.include_router(auth_router)
+app.include_router(device_router)
+app.include_router(analytics_router)
 
 @app.get("/health", tags=["system"])
 async def health():

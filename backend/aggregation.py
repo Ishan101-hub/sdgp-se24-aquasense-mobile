@@ -8,8 +8,8 @@ from datetime import date, timedelta
 from sqlalchemy import select, func, extract, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from app.database import AsyncSessionLocal
-from app.models import Device, Reading, DailySummary, Event
+from database import AsyncSessionLocal
+from models import Device, Reading, DailySummary, Event
 
 logger = logging.getLogger("aquasense.aggregation")
 

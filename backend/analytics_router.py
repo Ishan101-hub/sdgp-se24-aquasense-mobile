@@ -8,9 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, extract, text
 
-from app.database import get_db
-from app.auth import get_current_user
-from app.models import User, Network, Device, Reading, DailySummary, Event
+from database import get_db
+from auth import get_current_user
+from models import User, Network, Device, Reading, DailySummary, Event
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 

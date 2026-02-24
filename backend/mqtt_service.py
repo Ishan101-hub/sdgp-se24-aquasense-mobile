@@ -11,10 +11,10 @@ import aiomqtt
 from sqlalchemy import insert, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from app.config import settings
-from app.database import AsyncSessionLocal
-from app.models import Device, Reading, Event, ValveLog
-from app.leak_service import evaluate_reading
+from config import settings
+from database import AsyncSessionLocal
+from models import Device, Reading, Event, ValveLog
+from leak_service import evaluate_reading
 
 logger = logging.getLogger("aquasense.mqtt")
 

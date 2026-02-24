@@ -1,5 +1,5 @@
-# app/auth.py
-# Manual JWT authentication – no Firebase, no Supabase
+# auth_router.py
+# Manual JWT authentication
 
 import hashlib
 import secrets
@@ -12,9 +12,14 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.config import settings
-from app.database import get_db
-from app.models import User, RefreshToken
+from config import settings
+from database import get_db
+from models import User, RefreshToken
+
+from fastapi import APIRouter, Depends
+
+
+router = APIRouter()
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
