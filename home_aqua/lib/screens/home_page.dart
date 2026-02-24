@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/today_card.dart';
 import '../widgets/water_status_card.dart';
-import '../widgets/daily_consumption_card.dart'; // ← new import
+import '../widgets/daily_consumption_card.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -15,29 +15,32 @@ class HomePage extends StatelessWidget {
           children: [
 
             // ── TOP ROW: Today card + Water Status card ──
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+            // ── FIXED: CrossAxisAlignment.stretch makes both cards same height ──
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch, // ← KEY FIX
+                children: const [
 
-                // Today Card (left side)
-                Expanded(
-                  child: TodayCard(),
-                ),
+                  // Today Card (left side)
+                  Expanded(
+                    child: TodayCard(),
+                  ),
 
-                SizedBox(width: 12),
+                  SizedBox(width: 12),
 
-                // Water Status Card (right side)
-                Expanded(
-                  child: WaterStatusCard(),
-                ),
+                  // Water Status Card (right side)
+                  Expanded(
+                    child: WaterStatusCard(),
+                  ),
 
-              ],
+                ],
+              ),
             ),
 
             const SizedBox(height: 16),
 
-            // ── PART 3.1: Daily Consumption card ──
-            const DailyConsumptionCard(), // ← replaced placeholder
+            // ── Daily Consumption card ──
+            const DailyConsumptionCard(),
 
           ],
         ),
