@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../widgets/support_card.dart';
 
-class InstallationGuideScreen extends StatelessWidget {
-  const InstallationGuideScreen({super.key});
+class NWSDBCoordinationScreen extends StatelessWidget {
+  const NWSDBCoordinationScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -12,7 +12,7 @@ class InstallationGuideScreen extends StatelessWidget {
       backgroundColor: const Color(0xFFF8FAFF),
       appBar: AppBar(
         title: const Text(
-          "Setup Guide",
+          "NWSDB Coordination",
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: brandBlue,
@@ -35,10 +35,10 @@ class InstallationGuideScreen extends StatelessWidget {
               ),
               child: const Column(
                 children: [
-                  Icon(Icons.plumbing, color: Colors.white, size: 60),
+                  Icon(Icons.account_balance, color: Colors.white, size: 60),
                   SizedBox(height: 10),
                   Text(
-                    "Hardware Setup",
+                    "Official Coordination",
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 18,
@@ -55,26 +55,26 @@ class InstallationGuideScreen extends StatelessWidget {
                 children: [
                   SupportCard(
                     step: 1,
-                    icon: Icons.water_drop,
-                    title: "Mount Sensor",
+                    icon: Icons.report_problem,
+                    title: "Report Leak",
                     desc:
-                        "Install the flow sensor on the main water inlet pipe of your house.",
+                        "Share your app's leak logs with NWSDB for faster emergency repairs.",
                     color: brandBlue,
                   ),
                   SupportCard(
                     step: 2,
-                    icon: Icons.electrical_services,
-                    title: "Connect Pins",
+                    icon: Icons.receipt_long,
+                    title: "Billing Proof",
                     desc:
-                        "Plug the sensor wires into the designated GPIO pins on your AquaSense box.",
+                        "Use your 'Usage History' to dispute inaccurate water bills at the NWSDB office.",
                     color: Colors.orange,
                   ),
                   SupportCard(
                     step: 3,
-                    icon: Icons.power,
-                    title: "Power On",
+                    icon: Icons.phone_in_talk,
+                    title: "Call Hotline",
                     desc:
-                        "Plug in the 5V adapter. The status LED should turn blue.",
+                        "Dial 1939 directly for government water supply emergencies.",
                     color: Colors.green,
                   ),
                 ],
