@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 // Importing the detail screens
 import 'iot_connectivity_screen.dart';
-// import 'installation_guide_screen.dart';
+import 'installation_guide_screen.dart';
 // import 'nwsdb_coordination_screen.dart';
 // import 'user_manual_screen.dart';
 
@@ -120,12 +120,12 @@ class SupportScreen extends StatelessWidget {
               IoTConnectivityScreen(),
             ),
 
-            // _buildSupportTile(
-            //   context,
-            //   Icons.plumbing,
-            //   "Installation Guide",
-            //   //InstallationGuideScreen(),
-            // ),
+            _buildSupportTile(
+              context,
+              Icons.plumbing,
+              "Installation Guide",
+              InstallationGuideScreen(),
+            ),
             // _buildSupportTile(
             //   context,
             //   Icons.account_balance,
