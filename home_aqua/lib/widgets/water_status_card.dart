@@ -22,7 +22,7 @@ class WaterStatusCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
 
-          // ── TITLE: "Water Status" ──
+          // ── TITLE ──
           const Align(
             alignment: Alignment.centerLeft,
             child: Text(
@@ -37,7 +37,7 @@ class WaterStatusCard extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // ── PLACEHOLDER for water drop symbol (Part 2.2 later) ──
+          // ── PLACEHOLDER for water drop (Part 2.2 later) ──
           const Text(
             '(Water drop here)',
             style: TextStyle(color: Colors.grey),
@@ -45,7 +45,7 @@ class WaterStatusCard extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // ── BOTTOM TEXT: "Water running" ──
+          // ── BOTTOM TEXT ──
           const Text(
             'Water running',
             style: TextStyle(
