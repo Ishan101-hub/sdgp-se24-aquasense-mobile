@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'iot_connectivity_screen.dart';
 import 'installation_guide_screen.dart';
 import 'nwsdb_coordination_screen.dart';
-// import 'user_manual_screen.dart';
+import 'user_manual_screen.dart';
 
 class SupportScreen extends StatelessWidget {
   const SupportScreen({super.key});
@@ -132,12 +132,12 @@ class SupportScreen extends StatelessWidget {
               "NWSDB Coordination",
               NWSDBCoordinationScreen(),
             ),
-            // _buildSupportTile(
-            //   context,
-            //   Icons.info_outline,
-            //   "App User Manual",
-            //   UserManualScreen(),
-            // ),
+            _buildSupportTile(
+              context,
+              Icons.info_outline,
+              "App User Manual",
+              UserManualScreen(),
+            ),
             const SizedBox(height: 30),
           ],
         ),
