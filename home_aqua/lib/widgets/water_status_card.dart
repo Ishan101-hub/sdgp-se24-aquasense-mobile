@@ -11,7 +11,7 @@ class WaterStatusCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.08),
+            color: Colors.blue.withValues(alpha: 0.08),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -37,10 +37,32 @@ class WaterStatusCard extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // ── PLACEHOLDER for water drop (Part 2.2 later) ──
-          const Text(
-            '(Water drop here)',
-            style: TextStyle(color: Colors.grey),
+          // ── PART 2.2: Circle with text inside ──
+          Container(
+            width: 110,
+            height: 110,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,       // perfect circle
+              border: Border.all(
+                color: const Color(0xFF1A1A6E), // navy blue border
+                width: 4,                        // border thickness
+              ),
+              color: Colors.white,              // white inside
+            ),
+            child: const Center(
+              child: Text(
+                // placeholder text for now
+                // Part 2.3 will add real value here
+                '- -\nL/min',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1A1A6E),
+                  height: 1.4,
+                ),
+              ),
+            ),
           ),
 
           const SizedBox(height: 16),
