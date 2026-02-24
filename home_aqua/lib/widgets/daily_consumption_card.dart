@@ -1,21 +1,35 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
+// ── SubLine model ──
+// This represents one sub-line (zone) from your backend
+// Example: SubLine(name: 'kitchen1', litres: 30)
+class SubLine {
+  final String name;   // name from backend e.g. kitchen1, outdoor2
+  final double litres; // usage in litres
+
+  const SubLine({
+    required this.name,
+    required this.litres,
+  });
+}
+
 class DailyConsumptionCard extends StatelessWidget {
 
-  // Test values for now
-  // When backend is ready, replace these with real values
-  final double kitchenLitres;
-  final double bathroomLitres;
-  final double outdoorLitres;
+  // ── List of sub-lines (dynamic from backend later) ──
+  // Right now using test data with 3 zones
+  // When backend is ready, replace this list with real data
+  final List<SubLine> subLines;
   final double maxLitres; // full circle = this value
 
   const DailyConsumptionCard({
     super.key,
-    this.kitchenLitres  = 30,  // test value
-    this.bathroomLitres = 140, // test value
-    this.outdoorLitres  = 50,  // test value
-    this.maxLitres      = 150, // full circle = 150 litres
+    this.subLines = const [
+      SubLine(name: 'Kitchen',  litres: 30),  // test value
+      SubLine(name: 'Bathroom', litres: 140), // test value
+      SubLine(name: 'Outdoor',  litres: 50),  // test value
+    ],
+    this.maxLitres = 150, // test value
   });
 
   @override
@@ -38,7 +52,7 @@ class DailyConsumptionCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
 
-          // ── TITLE (centered like screenshot) ──
+          // ── TITLE ──
           const Text(
             'Daily Consumption',
             style: TextStyle(
@@ -50,33 +64,19 @@ class DailyConsumptionCard extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          // ── 3 CIRCULAR BARS side by side ──
+          // ── DYNAMIC sub-line circles ──
+          // This Row is built from the subLines list
+          // So if backend sends 2 zones or 4 zones, it adjusts automatically!
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-
-              // Kitchen circle
-              _CircleBar(
-                litres: kitchenLitres,
+            children: subLines.map((subLine) {
+              // For each SubLine in the list, create one _CircleBar
+              return _CircleBar(
+                litres: subLine.litres,
                 maxLitres: maxLitres,
-                label: 'Kitchen',
-              ),
-
-              // Bathroom circle
-              _CircleBar(
-                litres: bathroomLitres,
-                maxLitres: maxLitres,
-                label: 'Bathroom',
-              ),
-
-              // Outdoor circle
-              _CircleBar(
-                litres: outdoorLitres,
-                maxLitres: maxLitres,
-                label: 'Outdoor',
-              ),
-
-            ],
+                label: subLine.name, // ← dynamic name from backend!
+              );
+            }).toList(),
           ),
 
           const SizedBox(height: 8),
@@ -89,8 +89,6 @@ class DailyConsumptionCard extends StatelessWidget {
 
 
 // ── SINGLE CIRCLE BAR WIDGET ─────────────────────────────────
-// Draws one circular progress bar with litres inside
-// and label below — exactly like the screenshot
 class _CircleBar extends StatelessWidget {
   final double litres;
   final double maxLitres;
@@ -124,7 +122,7 @@ class _CircleBar extends StatelessWidget {
                 child: CustomPaint(
                   painter: _ArcPainter(
                     progress: 1.0,
-                    color: const Color(0xFFE0E0E0), // grey
+                    color: const Color(0xFFE0E0E0),
                     strokeWidth: 8,
                   ),
                 ),
@@ -137,18 +135,16 @@ class _CircleBar extends StatelessWidget {
                 child: CustomPaint(
                   painter: _ArcPainter(
                     progress: progress,
-                    color: const Color(0xFF1A1A6E), // navy blue
+                    color: const Color(0xFF1A1A6E),
                     strokeWidth: 8,
                   ),
                 ),
               ),
 
-              // Number + Liters text inside circle
+              // Number + Liters inside circle
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-
-                  // Big number
                   Text(
                     '${litres.toInt()}',
                     style: const TextStyle(
@@ -158,8 +154,6 @@ class _CircleBar extends StatelessWidget {
                       height: 1.0,
                     ),
                   ),
-
-                  // Small "Liters" text
                   const Text(
                     'Liters',
                     style: TextStyle(
@@ -168,7 +162,6 @@ class _CircleBar extends StatelessWidget {
                       fontWeight: FontWeight.w400,
                     ),
                   ),
-
                 ],
               ),
 
@@ -178,9 +171,9 @@ class _CircleBar extends StatelessWidget {
 
         const SizedBox(height: 8),
 
-        // ── LABEL below circle (Kitchen / Bathroom / Outdoor) ──
+        // ── DYNAMIC LABEL below circle ──
         Text(
-          label,
+          label, // ← comes from SubLine.name (dynamic!)
           style: const TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.bold,
@@ -195,7 +188,6 @@ class _CircleBar extends StatelessWidget {
 
 
 // ── ARC PAINTER ──────────────────────────────────────────────
-// Same arc style as TodayCard — open gap at bottom
 class _ArcPainter extends CustomPainter {
   final double progress;
   final Color color;
@@ -219,7 +211,6 @@ class _ArcPainter extends CustomPainter {
     final double centerY = size.height / 2;
     final double radius = (size.width - strokeWidth) / 2;
 
-    // Same arc angles as TodayCard for consistency
     const double startAngle = 140 * math.pi / 180;
     final double sweepAngle = 260 * math.pi / 180 * progress;
 
