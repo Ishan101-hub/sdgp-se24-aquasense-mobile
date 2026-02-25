@@ -3,7 +3,8 @@ import '../widgets/today_card.dart';
 import '../widgets/water_status_card.dart';
 import '../widgets/daily_consumption_card.dart';
 import '../widgets/bell_button.dart';
-import '../widgets/usage_chart_card.dart'; // ← new import
+import '../widgets/usage_chart_card.dart';
+import '../widgets/usage_summary_card.dart'; // ← new import
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -39,8 +40,13 @@ class HomePage extends StatelessWidget {
 
                 const SizedBox(height: 16),
 
-                // ── SCROLL DOWN: Usage Chart card ──
+                // ── SCROLL DOWN: Usage Chart ──
                 const UsageChartCard(),
+
+                const SizedBox(height: 16),
+
+                // ── SCROLL DOWN: Usage Summary bars ──
+                const UsageSummaryCard(),
 
               ],
             ),
