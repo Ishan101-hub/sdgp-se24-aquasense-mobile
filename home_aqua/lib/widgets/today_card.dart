@@ -2,17 +2,15 @@ import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
 class TodayCard extends StatelessWidget {
-  // Fixed test values for now
-  // When backend ready, just change these numbers
   final double litresUsed;
   final double dailyAverageLitres;
   final double dailyAveragePercent;
 
   const TodayCard({
     super.key,
-    this.litresUsed = 220,         // test value
-    this.dailyAverageLitres = 450, // test value
-    this.dailyAveragePercent = 48, // test value
+    this.litresUsed = 220,
+    this.dailyAverageLitres = 450,
+    this.dailyAveragePercent = 48,
   });
 
   @override
@@ -25,7 +23,7 @@ class TodayCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.08),
+            color: Colors.blue.withValues(alpha: 0.08),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -38,7 +36,7 @@ class TodayCard extends StatelessWidget {
 
           // ── TITLE ──
           const Align(
-            alignment: Alignment.centerLeft,
+            alignment: Alignment.center,
             child: Text(
               'Today',
               style: TextStyle(
@@ -51,7 +49,7 @@ class TodayCard extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // ── Circular loading bar with 220 Litres inside ──
+          // ── Circular loading bar ──
           SizedBox(
             width: 130,
             height: 130,
@@ -85,15 +83,16 @@ class TodayCard extends StatelessWidget {
                   ),
                 ),
 
-                // 220 Litres text inside circle
+                // ── FIXED: 1 decimal point ──
                 RichText(
                   textAlign: TextAlign.center,
                   text: TextSpan(
                     children: [
                       TextSpan(
-                        text: '${litresUsed.toInt()}',
+                        // ← toStringAsFixed(1) gives 1 decimal e.g. 220.0
+                        text: litresUsed.toStringAsFixed(1),
                         style: const TextStyle(
-                          fontSize: 36,
+                          fontSize: 30,
                           fontWeight: FontWeight.bold,
                           color: Color(0xFF1A1A6E),
                         ),
@@ -102,7 +101,7 @@ class TodayCard extends StatelessWidget {
                         text: '\nLitres',
                         style: TextStyle(
                           fontSize: 13,
-                          color: Color(0xFF1A1A6E),
+                          color: Color(0xFF6978EC),
                           fontWeight: FontWeight.w400,
                         ),
                       ),
@@ -116,12 +115,12 @@ class TodayCard extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // ── 48% of daily average ──
+          // ── percentage text ──
           Text(
-            '${dailyAveragePercent.toInt()}% of daily average',
+            '${dailyAveragePercent.toStringAsFixed(1)}% of daily average',
             style: const TextStyle(
               fontSize: 13,
-              color: Color(0xFF888888),
+              color: Color(0xFF6978EC),
             ),
           ),
 

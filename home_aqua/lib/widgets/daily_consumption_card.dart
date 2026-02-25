@@ -1,35 +1,25 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
-// ── SubLine model ──
-// This represents one sub-line (zone) from your backend
-// Example: SubLine(name: 'kitchen1', litres: 30)
-class SubLine {
-  final String name;   // name from backend e.g. kitchen1, outdoor2
-  final double litres; // usage in litres
+// ── Zone model ──────────────────────────────────────────────
+class WaterZone {
+  final String name;
+  final double used;
+  final double average;
 
-  const SubLine({
+  const WaterZone({
     required this.name,
-    required this.litres,
+    required this.used,
+    required this.average,
   });
 }
 
 class DailyConsumptionCard extends StatelessWidget {
-
-  // ── List of sub-lines (dynamic from backend later) ──
-  // Right now using test data with 3 zones
-  // When backend is ready, replace this list with real data
-  final List<SubLine> subLines;
-  final double maxLitres; // full circle = this value
+  final List<WaterZone> zones;
 
   const DailyConsumptionCard({
     super.key,
-    this.subLines = const [
-      SubLine(name: 'Kitchen',  litres: 30),  // test value
-      SubLine(name: 'Bathroom', litres: 140), // test value
-      SubLine(name: 'Outdoor',  litres: 50),  // test value
-    ],
-    this.maxLitres = 150, // test value
+    required this.zones,
   });
 
   @override
@@ -64,22 +54,39 @@ class DailyConsumptionCard extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          // ── DYNAMIC sub-line circles ──
-          // This Row is built from the subLines list
-          // So if backend sends 2 zones or 4 zones, it adjusts automatically!
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: subLines.map((subLine) {
-              // For each SubLine in the list, create one _CircleBar
-              return _CircleBar(
-                litres: subLine.litres,
-                maxLitres: maxLitres,
-                label: subLine.name, // ← dynamic name from backend!
-              );
-            }).toList(),
-          ),
+          // ── EMPTY STATE ──
+          if (zones.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'No zones found.\nCheck your device connections.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFF888888),
+                  fontSize: 13,
+                ),
+              ),
+            ),
 
-          const SizedBox(height: 8),
+          // ── DYNAMIC ZONES: rows of 3 ──
+          ...List.generate(
+            (zones.length / 3).ceil(),
+            (rowIndex) {
+              final rowZones = zones.sublist(
+                rowIndex * 3,
+                math.min(rowIndex * 3 + 3, zones.length),
+              );
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: rowZones.map((zone) {
+                    return _ZoneCircle(zone: zone);
+                  }).toList(),
+                ),
+              );
+            },
+          ),
 
         ],
       ),
@@ -88,77 +95,71 @@ class DailyConsumptionCard extends StatelessWidget {
 }
 
 
-// ── SINGLE CIRCLE BAR WIDGET ─────────────────────────────────
-class _CircleBar extends StatelessWidget {
-  final double litres;
-  final double maxLitres;
-  final String label;
+// ── ZONE CIRCLE ──────────────────────────────────────────────
+class _ZoneCircle extends StatelessWidget {
+  final WaterZone zone;
 
-  const _CircleBar({
-    required this.litres,
-    required this.maxLitres,
-    required this.label,
-  });
+  const _ZoneCircle({required this.zone});
 
   @override
   Widget build(BuildContext context) {
-    double progress = (litres / maxLitres).clamp(0.0, 1.0);
+    final bool isOverLimit = zone.used >= zone.average;
+    final double progress  = isOverLimit
+        ? 1.0
+        : (zone.used / zone.average).clamp(0.0, 1.0);
+    final Color arcColor   = isOverLimit ? const Color(0xFFD80B0B) : const Color(0xFF1A1A6E);
+    final Color textColor  = isOverLimit ? const Color(0xFFD80B0B) : const Color(0xFF1A1A6E);
 
     return Column(
       children: [
 
-        // ── CIRCLE with number inside ──
+        // ── CIRCULAR ARC ──
         SizedBox(
-          width: 90,
-          height: 90,
+          width: 95,
+          height: 95,
           child: Stack(
             alignment: Alignment.center,
             children: [
 
               // Grey background arc
-              SizedBox(
-                width: 90,
-                height: 90,
-                child: CustomPaint(
-                  painter: _ArcPainter(
-                    progress: 1.0,
-                    color: const Color(0xFFE0E0E0),
-                    strokeWidth: 8,
-                  ),
+              CustomPaint(
+                size: const Size(95, 95),
+                painter: _ArcPainter(
+                  progress: 1.0,
+                  color: const Color(0xFFE0E0E0),
+                  strokeWidth: 8,
                 ),
               ),
 
-              // Navy blue progress arc
-              SizedBox(
-                width: 90,
-                height: 90,
-                child: CustomPaint(
-                  painter: _ArcPainter(
-                    progress: progress,
-                    color: const Color(0xFF1A1A6E),
-                    strokeWidth: 8,
-                  ),
+              // Colored progress arc
+              CustomPaint(
+                size: const Size(95, 95),
+                painter: _ArcPainter(
+                  progress: progress,
+                  color: arcColor,
+                  strokeWidth: 8,
                 ),
               ),
 
-              // Number + Liters inside circle
+              // ── FIXED: 1 decimal point inside circle ──
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    '${litres.toInt()}',
-                    style: const TextStyle(
-                      fontSize: 20,
+                    // ← toStringAsFixed(1) gives 1 decimal e.g. 80.0
+                    zone.used.toStringAsFixed(1),
+                    style: TextStyle(
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF1A1A6E),
+                      color: textColor,
                       height: 1.0,
                     ),
                   ),
-                  const Text(
+                  Text(
                     'Liters',
                     style: TextStyle(
                       fontSize: 10,
-                      color: Color(0xFF1A1A6E),
+                      color: textColor,
                       fontWeight: FontWeight.w400,
                     ),
                   ),
@@ -171,15 +172,26 @@ class _CircleBar extends StatelessWidget {
 
         const SizedBox(height: 8),
 
-        // ── DYNAMIC LABEL below circle ──
+        // Zone name
         Text(
-          label, // ← comes from SubLine.name (dynamic!)
+          zone.name,
           style: const TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.bold,
             color: Color(0xFF1A1A6E),
           ),
         ),
+
+        // Warning if over limit
+        if (isOverLimit)
+          const Text(
+            'Over limit!',
+            style: TextStyle(
+              fontSize: 10,
+              color: const Color(0xFFD80B0B),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
 
       ],
     );
@@ -209,16 +221,13 @@ class _ArcPainter extends CustomPainter {
 
     final double centerX = size.width / 2;
     final double centerY = size.height / 2;
-    final double radius = (size.width - strokeWidth) / 2;
+    final double radius  = (size.width - strokeWidth) / 2;
 
     const double startAngle = 140 * math.pi / 180;
     final double sweepAngle = 260 * math.pi / 180 * progress;
 
     canvas.drawArc(
-      Rect.fromCircle(
-        center: Offset(centerX, centerY),
-        radius: radius,
-      ),
+      Rect.fromCircle(center: Offset(centerX, centerY), radius: radius),
       startAngle,
       sweepAngle,
       false,

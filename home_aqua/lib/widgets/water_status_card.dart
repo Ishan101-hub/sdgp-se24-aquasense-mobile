@@ -31,7 +31,7 @@ class WaterStatusCard extends StatelessWidget {
 
           // ── TITLE ──
           const Align(
-            alignment: Alignment.centerLeft,
+            alignment: Alignment.center,
             child: Text(
               'Water Status',
               style: TextStyle(
@@ -79,7 +79,7 @@ class WaterStatusCard extends StatelessWidget {
                   'L/min',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Color(0xFF1A1A6E),
+                    color: Color(0xFF6978EC),
                     fontWeight: FontWeight.w400,
                   ),
                 ),
@@ -92,10 +92,10 @@ class WaterStatusCard extends StatelessWidget {
 
           // ── BOTTOM TEXT ──
           const Text(
-            'Water running',
+            'Water running speed',
             style: TextStyle(
               fontSize: 13,
-              color: Color(0xFF888888),
+              color: Color(0xFF6978EC),
             ),
           ),
 
