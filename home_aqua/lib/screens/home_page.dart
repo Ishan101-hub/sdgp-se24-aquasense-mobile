@@ -3,6 +3,7 @@ import '../widgets/today_card.dart';
 import '../widgets/water_status_card.dart';
 import '../widgets/daily_consumption_card.dart';
 import '../widgets/bell_button.dart';
+import '../widgets/usage_chart_card.dart'; // ← new import
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -10,49 +11,47 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: Column(
+      child: Stack(
         children: [
 
           // ── SCROLLABLE CONTENT ──
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+            child: Column(
+              children: [
 
-                  // ── TOP ROW: Today card + Water Status card ──
-                  IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: const [
-                        Expanded(child: TodayCard()),
-                        SizedBox(width: 12),
-                        Expanded(child: WaterStatusCard()),
-                      ],
-                    ),
+                // ── TOP ROW: Today card + Water Status card ──
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: const [
+                      Expanded(child: TodayCard()),
+                      SizedBox(width: 12),
+                      Expanded(child: WaterStatusCard()),
+                    ],
                   ),
+                ),
 
-                  const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-                  // ── Daily Consumption card ──
-                  const DailyConsumptionCard(),
+                // ── Daily Consumption card ──
+                const DailyConsumptionCard(),
 
-                ],
-              ),
+                const SizedBox(height: 16),
+
+                // ── SCROLL DOWN: Usage Chart card ──
+                const UsageChartCard(),
+
+              ],
             ),
           ),
 
-          // ── BELL BUTTON at bottom right ──
-          Padding(
-            padding: const EdgeInsets.only(
-              right: 16,
-              bottom: 16,
-            ),
-            child: const Align(
-              alignment: Alignment.centerRight,
-              child: BellButton(
-                hasNotification: false, // no red dot for now
-              ),
+          // ── BELL BUTTON fixed at bottom right ──
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: BellButton(
+              hasNotification: false,
             ),
           ),
 
