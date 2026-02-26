@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 
 class UsageSummaryCard extends StatelessWidget {
 
-  // Test values for now
-  // When backend ready, replace with real API data
   final double dailyAverage;
-  final double dailyConsumption;
+  final double dailyConsumption;    // ← comes from home_page (sum of zones)
   final double weeklyAverage;
   final double weeklyConsumption;
   final double monthlyAverage;
@@ -13,18 +11,16 @@ class UsageSummaryCard extends StatelessWidget {
 
   const UsageSummaryCard({
     super.key,
-    this.dailyAverage     = 150,  // test value
-    this.dailyConsumption = 220,  // test value
-    this.weeklyAverage    = 1050, // test value
-    this.weeklyConsumption = 800, // test value
-    this.monthlyAverage   = 215,  // test value
-    this.monthlyConsumption = 270, // test value
+    this.dailyAverage      = 300,  // sum of all zone averages
+    this.dailyConsumption  = 0,    // ← passed in from home_page ✅
+    this.weeklyAverage     = 1050,
+    this.weeklyConsumption = 800,
+    this.monthlyAverage    = 215,
+    this.monthlyConsumption = 270,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Max value for bar width calculation
-    // We use the largest value so bars scale correctly
     double maxValue = [
       dailyAverage,
       dailyConsumption,
@@ -51,66 +47,54 @@ class UsageSummaryCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
 
-          // ── LEGEND ROW: Average + Consumption ──
+          // ── LEGEND ──
           Row(
             children: [
-
-              // Average legend
               Row(
                 children: [
                   Container(
                     width: 20,
                     height: 20,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFCDD8F0), // light blue
+                      color: const Color(0xFFCDD8F0),
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
                   const SizedBox(width: 6),
                   const Text(
                     'Average',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF1A1A6E),
-                    ),
+                    style: TextStyle(fontSize: 13, color: Color(0xFF1A1A6E)),
                   ),
                 ],
               ),
-
               const SizedBox(width: 24),
-
-              // Consumption legend
               Row(
                 children: [
                   Container(
                     width: 20,
                     height: 20,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1A1A6E), // navy blue
+                      color: const Color(0xFF1A1A6E),
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
                   const SizedBox(width: 6),
                   const Text(
                     'Consumption',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF1A1A6E),
-                    ),
+                    style: TextStyle(fontSize: 13, color: Color(0xFF1A1A6E)),
                   ),
                 ],
               ),
-
             ],
           ),
 
           const SizedBox(height: 20),
 
-          // ── DAILY ROW ──
+          // ── DAILY ROW (uses real totalUsed from home_page) ──
           _SummaryRow(
             label: 'Daily',
             averageValue: dailyAverage,
-            consumptionValue: dailyConsumption,
+            consumptionValue: dailyConsumption, // ← real value ✅
             maxValue: maxValue,
           ),
 
@@ -140,12 +124,6 @@ class UsageSummaryCard extends StatelessWidget {
   }
 }
 
-
-// ── SINGLE SUMMARY ROW ───────────────────────────────────────
-// Shows label + 2 horizontal bars (average + consumption)
-// Example:
-//   Daily   [░░░░░░░░░░░░] 150 liters  ← light blue (average)
-//            [████████░░░] 220 liters  ← navy blue (consumption)
 class _SummaryRow extends StatelessWidget {
   final String label;
   final double averageValue;
@@ -168,7 +146,6 @@ class _SummaryRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
 
-        // ── LABEL (Daily / Weekly / Monthly) ──
         SizedBox(
           width: 65,
           child: Text(
@@ -181,13 +158,12 @@ class _SummaryRow extends StatelessWidget {
           ),
         ),
 
-        // ── TWO BARS COLUMN ──
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
 
-              // Average bar (light blue) + value
+              // Average bar
               Row(
                 children: [
                   Expanded(
@@ -198,7 +174,7 @@ class _SummaryRow extends StatelessWidget {
                         minHeight: 22,
                         backgroundColor: Colors.transparent,
                         valueColor: const AlwaysStoppedAnimation<Color>(
-                          Color(0xFFCDD8F0), // light blue
+                          Color(0xFFCDD8F0),
                         ),
                       ),
                     ),
@@ -206,17 +182,14 @@ class _SummaryRow extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     '${averageValue.toInt()} liters',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF888888),
-                    ),
+                    style: const TextStyle(fontSize: 11, color: Color(0xFF888888)),
                   ),
                 ],
               ),
 
               const SizedBox(height: 4),
 
-              // Consumption bar (navy blue) + value
+              // Consumption bar
               Row(
                 children: [
                   Expanded(
@@ -227,18 +200,15 @@ class _SummaryRow extends StatelessWidget {
                         minHeight: 22,
                         backgroundColor: Colors.transparent,
                         valueColor: const AlwaysStoppedAnimation<Color>(
-                          Color(0xFF1A1A6E), // navy blue
+                          Color(0xFF1A1A6E),
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    '${consumptionValue.toInt()} liters',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF888888),
-                    ),
+                    '${consumptionValue.toStringAsFixed(1)} liters',
+                    style: const TextStyle(fontSize: 11, color: Color(0xFF888888)),
                   ),
                 ],
               ),

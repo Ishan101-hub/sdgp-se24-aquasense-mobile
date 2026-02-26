@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
-// ── Chart periods ──
 enum ChartPeriod { monthly, weekly, daily }
 
 class UsageChartCard extends StatefulWidget {
-  const UsageChartCard({super.key});
+
+  // ── todayUsage: sum of all zones from home_page ──
+  // Daily chart last point ("Now") = this value
+  final double todayUsage;
+
+  const UsageChartCard({
+    super.key,
+    this.todayUsage = 0,
+  });
 
   @override
   State<UsageChartCard> createState() => _UsageChartCardState();
@@ -13,52 +20,32 @@ class UsageChartCard extends StatefulWidget {
 
 class _UsageChartCardState extends State<UsageChartCard> {
 
-  // Currently selected period — starts on Monthly
   ChartPeriod _selected = ChartPeriod.monthly;
 
-  // ── PART 1.1: Monthly test data ──
-  // X = month index, Y = usage in m³
-  // When backend ready, replace with real API data
   final List<FlSpot> _monthlyData = const [
-    FlSpot(0, 20), // June
-    FlSpot(1, 17), // July
-    FlSpot(2, 7),  // Aug
-    FlSpot(3, 25), // Sep
-    FlSpot(4, 10), // Oct
+    FlSpot(0, 20), FlSpot(1, 17), FlSpot(2, 7), FlSpot(3, 25), FlSpot(4, 10),
   ];
 
-  // ── PART 1.2: Weekly test data (placeholder for now) ──
   final List<FlSpot> _weeklyData = const [
-    FlSpot(0, 12),
-    FlSpot(1, 18),
-    FlSpot(2, 15),
-    FlSpot(3, 22),
-    FlSpot(4, 9),
-    FlSpot(5, 14),
-    FlSpot(6, 20),
+    FlSpot(0, 12), FlSpot(1, 18), FlSpot(2, 15), FlSpot(3, 22),
+    FlSpot(4, 9),  FlSpot(5, 14), FlSpot(6, 20),
   ];
 
-  // ── PART 1.3: Daily test data (placeholder for now) ──
-  final List<FlSpot> _dailyData = const [
-    FlSpot(0, 8),
-    FlSpot(1, 15),
-    FlSpot(2, 11),
-    FlSpot(3, 19),
-    FlSpot(4, 14),
-    FlSpot(5, 22),
-    FlSpot(6, 10),
+  // ── Daily: last point uses real todayUsage (litres → m³) ──
+  List<FlSpot> get _dailyData => [
+    const FlSpot(0, 8),
+    const FlSpot(1, 15),
+    const FlSpot(2, 11),
+    const FlSpot(3, 19),
+    const FlSpot(4, 14),
+    const FlSpot(5, 22),
+    FlSpot(6, widget.todayUsage / 1000), // ← real today usage ✅
   ];
 
-  // Monthly x-axis labels
   final List<String> _monthLabels = ['June', 'July', 'Aug', 'Sep', 'Oct'];
+  final List<String> _weekLabels  = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  final List<String> _dayLabels   = ['6am', '9am', '12pm', '3pm', '6pm', '9pm', 'Now'];
 
-  // Weekly x-axis labels
-  final List<String> _weekLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-  // Daily x-axis labels
-  final List<String> _dayLabels = ['6am', '9am', '12pm', '3pm', '6pm', '9pm', '12am'];
-
-  // Returns correct data based on selected period
   List<FlSpot> get _currentData {
     switch (_selected) {
       case ChartPeriod.monthly: return _monthlyData;
@@ -67,7 +54,6 @@ class _UsageChartCardState extends State<UsageChartCard> {
     }
   }
 
-  // Returns correct labels based on selected period
   List<String> get _currentLabels {
     switch (_selected) {
       case ChartPeriod.monthly: return _monthLabels;
@@ -76,7 +62,6 @@ class _UsageChartCardState extends State<UsageChartCard> {
     }
   }
 
-  // Returns period label text
   String get _periodLabel {
     switch (_selected) {
       case ChartPeriod.monthly: return 'Last 5 Months';
@@ -104,7 +89,6 @@ class _UsageChartCardState extends State<UsageChartCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
 
-          // ── TOP ROW: Monthly / Weekly / Daily buttons ──
           Row(
             children: [
               _PeriodButton(
@@ -129,35 +113,26 @@ class _UsageChartCardState extends State<UsageChartCard> {
 
           const SizedBox(height: 12),
 
-          // ── CHART AREA (navy blue background) ──
           Container(
             height: 220,
             decoration: BoxDecoration(
-              color: const Color(0xFF0A1B6F), // navy blue background
+              color: const Color(0xFF0A1B6F),
               borderRadius: BorderRadius.circular(16),
             ),
             padding: const EdgeInsets.fromLTRB(8, 16, 16, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-
-                // ── Y-axis unit label ──
                 const Padding(
                   padding: EdgeInsets.only(left: 8, bottom: 4),
                   child: Text(
                     '(m³)',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ),
-
-                // ── LINE CHART ──
                 Expanded(
                   child: LineChart(
                     LineChartData(
-                      // Grid lines
                       gridData: FlGridData(
                         show: true,
                         drawVerticalLine: true,
@@ -170,13 +145,8 @@ class _UsageChartCardState extends State<UsageChartCard> {
                           strokeWidth: 1,
                         ),
                       ),
-
-                      // Border around chart
                       borderData: FlBorderData(show: false),
-
-                      // X and Y axis titles
                       titlesData: FlTitlesData(
-                        // LEFT axis (numbers 10, 20, 30)
                         leftTitles: AxisTitles(
                           sideTitles: SideTitles(
                             showTitles: true,
@@ -187,8 +157,7 @@ class _UsageChartCardState extends State<UsageChartCard> {
                                 return Text(
                                   '${value.toInt()}',
                                   style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
+                                    color: Colors.white, fontSize: 11,
                                   ),
                                 );
                               }
@@ -196,8 +165,6 @@ class _UsageChartCardState extends State<UsageChartCard> {
                             },
                           ),
                         ),
-
-                        // BOTTOM axis (month/day labels)
                         bottomTitles: AxisTitles(
                           sideTitles: SideTitles(
                             showTitles: true,
@@ -221,8 +188,6 @@ class _UsageChartCardState extends State<UsageChartCard> {
                             },
                           ),
                         ),
-
-                        // Hide right and top axis
                         rightTitles: const AxisTitles(
                           sideTitles: SideTitles(showTitles: false),
                         ),
@@ -230,39 +195,31 @@ class _UsageChartCardState extends State<UsageChartCard> {
                           sideTitles: SideTitles(showTitles: false),
                         ),
                       ),
-
-                      // The actual line
                       lineBarsData: [
                         LineChartBarData(
                           spots: _currentData,
-                          isCurved: true,           // smooth curved line
-                          color: Colors.white,      // white line
+                          isCurved: true,
+                          color: Colors.white,
                           barWidth: 3,
                           isStrokeCapRound: true,
-                          dotData: const FlDotData(show: false), // no dots
+                          dotData: const FlDotData(show: false),
                           belowBarData: BarAreaData(show: false),
                         ),
                       ],
-
-                      // Y axis range
                       minY: 0,
                       maxY: 35,
                     ),
                   ),
                 ),
-
               ],
             ),
           ),
 
           const SizedBox(height: 10),
 
-          // ── BOTTOM ROW: legend + period label ──
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-
-              // Blue dot + "Water Usage" label
               Row(
                 children: [
                   Container(
@@ -284,16 +241,10 @@ class _UsageChartCardState extends State<UsageChartCard> {
                   ),
                 ],
               ),
-
-              // Period label (Last 5 Months / Last 7 Days / Today)
               Text(
                 _periodLabel,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF888888),
-                ),
+                style: const TextStyle(fontSize: 13, color: Color(0xFF888888)),
               ),
-
             ],
           ),
 
@@ -303,8 +254,6 @@ class _UsageChartCardState extends State<UsageChartCard> {
   }
 }
 
-
-// ── PERIOD BUTTON (Monthly / Weekly / Daily) ─────────────────
 class _PeriodButton extends StatelessWidget {
   final String label;
   final bool isSelected;
@@ -322,36 +271,21 @@ class _PeriodButton extends StatelessWidget {
       onTap: onTap,
       child: Row(
         children: [
-
-          // Radio circle
           Container(
             width: 16,
             height: 16,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(
-                color: const Color(0xFF1A1A6E),
-                width: 2,
-              ),
-              color: isSelected
-                  ? const Color(0xFF1A1A6E) // filled when selected
-                  : Colors.white,           // empty when not selected
+              border: Border.all(color: const Color(0xFF1A1A6E), width: 2),
+              color: isSelected ? const Color(0xFF1A1A6E) : Colors.white,
             ),
-            // Inner white dot when selected
             child: isSelected
                 ? const Center(
-                    child: Icon(
-                      Icons.circle,
-                      size: 6,
-                      color: Colors.white,
-                    ),
+                    child: Icon(Icons.circle, size: 6, color: Colors.white),
                   )
                 : null,
           ),
-
           const SizedBox(width: 6),
-
-          // Label text
           Text(
             label,
             style: TextStyle(
@@ -362,7 +296,6 @@ class _PeriodButton extends StatelessWidget {
                   : const Color(0xFF888888),
             ),
           ),
-
         ],
       ),
     );
