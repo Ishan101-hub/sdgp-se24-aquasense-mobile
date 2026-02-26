@@ -3,25 +3,36 @@
 #include <PubSubClient.h>
 
 // -------------------- Pins --------------------
-#define SENSOR 27
-#define LED_BUILTIN 2
+#define SENSOR      27
+#define LED_BUILTIN  2
 
 // -------------------- Wi-Fi Configuration --------------------
-#define WIFI_SSID "Dialog 4G 780"
+#define WIFI_SSID     "Dialog 4G 780"
 #define WIFI_PASSWORD "40De7e62"
 
 // -------------------- MQTT / HiveMQ Configuration --------------------
-const char* mqtt_server = "66791e6741b44aecb122ab7b59807177.s1.eu.hivemq.cloud";
+const char* mqtt_server   = "66791e6741b44aecb122ab7b59807177.s1.eu.hivemq.cloud";
 const char* mqtt_username = "AquaSense";
 const char* mqtt_password = "Aquasense@123@#";
-const int mqtt_port = 8883;
+const int   mqtt_port     = 8883;
 
-// -------------------- MQTT Topics --------------------
-#define TOPIC_OUTLET_FLOW       "home/waterflow/outlet/flow_rate"
-#define TOPIC_OUTLET_TOTAL      "home/waterflow/outlet/total_L"
-#define TOPIC_OUTLET_HEARTBEAT  "home/waterflow/outlet/heartbeat"
+// ==================== MQTT Topics ====================
+// IMPORTANT: NETWORK_ID, ZONE_ID, DEVICE_ID must exactly match
+// the inlet device. Both devices are part of the same monitoring node.
+// =====================================================
 
-// -------------------- Root CA Certificate --------------------
+#define NETWORK_ID  "home_01"
+#define ZONE_ID     "bathroom_01"
+#define DEVICE_ID   "pipe_01"
+
+#define BASE        "aquasense/" NETWORK_ID "/" ZONE_ID "/" DEVICE_ID
+
+// Outlet publishes to these topics
+#define TOPIC_OUTLET_FLOW       BASE "/sensor/outlet/flow_rate"
+#define TOPIC_OUTLET_TOTAL      BASE "/sensor/outlet/total_L"
+#define TOPIC_OUTLET_HEARTBEAT  BASE "/sensor/outlet/heartbeat"
+
+// -------------------- Root CA Certificate (ISRG Root X1) --------------------
 static const char *root_ca PROGMEM = R"EOF(
 -----BEGIN CERTIFICATE-----
 MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw
@@ -56,29 +67,30 @@ emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
 -----END CERTIFICATE-----
 )EOF";
 
+// -------------------- MQTT & WiFi Clients --------------------
 WiFiClientSecure espClient;
-PubSubClient client(espClient);
+PubSubClient     client(espClient);
 
 // -------------------- Flow Variables --------------------
-volatile byte pulseCount = 0;
-byte pulse1Sec = 0;
-float flowRate = 0.0;
-unsigned int flowMilliLitres = 0;
-unsigned long totalMilliLitres = 0;
-long previousMillis = 0;
-int interval = 1000;             // Publish every 500ms for responsive live leakage screen
-float calibrationFactor = 6.5;  // Adjust to match your specific flow sensor
+volatile byte  pulseCount       = 0;
+byte           pulse1Sec        = 0;
+float          flowRate         = 0.0;
+unsigned int   flowMilliLitres  = 0;
+unsigned long  totalMilliLitres = 0;
+long           previousMillis   = 0;
+int            interval         = 1000;
+float          calibrationFactor = 6.5;
 
 // -------------------- Heartbeat Variables --------------------
-long previousHeartbeatMillis = 0;
-const int heartbeatInterval = 1000;  // Send heartbeat every 1 second
+long previousHeartbeatMillis  = 0;
+const int heartbeatInterval   = 1000;  // Send heartbeat every 1 second
 
 // -------------------- ISR --------------------
 void IRAM_ATTR pulseCounter() {
   pulseCount++;
 }
 
-// -------------------- MQTT Connection --------------------
+// ==================== MQTT RECONNECT ====================
 void reconnectMQTT() {
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
@@ -91,86 +103,74 @@ void reconnectMQTT() {
     } else {
       Serial.print("❌ Failed, rc=");
       Serial.print(client.state());
-      Serial.println(" Retrying in 5 seconds...");
+      Serial.println(" — retrying in 5s");
       delay(5000);
     }
   }
 }
 
-// -------------------- Setup --------------------
+// ==================== SETUP ====================
 void setup() {
   Serial.begin(115200);
   pinMode(SENSOR, INPUT_PULLUP);
   pinMode(LED_BUILTIN, OUTPUT);
   attachInterrupt(digitalPinToInterrupt(SENSOR), pulseCounter, FALLING);
 
-  // ── Wi-Fi ────────────────────────────────────────────────────────────────
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("Connecting to Wi-Fi");
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
-  Serial.println("\n✅ Wi-Fi Connected");
-  Serial.print("IP Address: ");
-  Serial.println(WiFi.localIP());
+  Serial.println("\n✅ Wi-Fi Connected — IP: " + WiFi.localIP().toString());
 
-  // ── MQTT Setup ───────────────────────────────────────────────────────────
   espClient.setCACert(root_ca);
   client.setServer(mqtt_server, mqtt_port);
   client.setKeepAlive(60);
   client.setSocketTimeout(30);
-  client.setBufferSize(512);  // Increased buffer for multiple rapid publishes
+  client.setBufferSize(512);
 
-  Serial.println("✅ MQTT Configured");
+  Serial.println("✅ Setup complete — AquaSense Outlet Device Ready");
+  Serial.println("📡 Publishing to: " BASE);
 }
 
-// -------------------- Main Loop --------------------
+// ==================== MAIN LOOP ====================
 void loop() {
-  // Maintain MQTT connection
-  if (!client.connected()) {
-    reconnectMQTT();
-  }
+  if (!client.connected()) reconnectMQTT();
   client.loop();
 
   long currentMillis = millis();
 
-  // ── Flow calculation every 500ms ─────────────────────────────────────────
+  // ── Flow calculation every 1 second ──────────────────────────────────────
   if (currentMillis - previousMillis > interval) {
     pulse1Sec  = pulseCount;
     pulseCount = 0;
     previousMillis = currentMillis;
 
-    // Formula normalises for any interval value automatically
-    flowRate         = ((1000.0 / interval) * pulse1Sec) / calibrationFactor;  // L/min
+    flowRate         = ((1000.0 / interval) * pulse1Sec) / calibrationFactor;
     flowMilliLitres  = (flowRate / 60) * 1000;
     totalMilliLitres += flowMilliLitres;
 
-    // ── Publish outlet flow data ────────────────────────────────────────────
-    char flowRateStr[10];
-    char totalLStr[10];
+    char flowRateStr[16];
+    char totalLStr[16];
 
-    dtostrf(flowRate,                   6, 2, flowRateStr);
-    dtostrf(totalMilliLitres / 1000.0,  6, 2, totalLStr);
+    dtostrf(flowRate,                  6, 2, flowRateStr);
+    dtostrf(totalMilliLitres / 1000.0, 6, 2, totalLStr);
 
     client.publish(TOPIC_OUTLET_FLOW,  flowRateStr);
     client.publish(TOPIC_OUTLET_TOTAL, totalLStr);
 
-    // ── LED blink to show activity ──────────────────────────────────────────
     digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 
-    // ── Serial monitor ──────────────────────────────────────────────────────
-    Serial.print("Outlet Flow: ");
-    Serial.print(flowRate, 2);
-    Serial.print(" L/min | Total: ");
-    Serial.print(totalMilliLitres / 1000.0);
+    Serial.print("Outlet Flow: "); Serial.print(flowRate, 2);
+    Serial.print(" L/min | Total: "); Serial.print(totalMilliLitres / 1000.0, 2);
     Serial.println(" L");
   }
 
-  // ── Heartbeat publish every 1 second ─────────────────────────────────────
-  // This tells the inlet ESP32 that this device is alive and online.
-  // If the inlet stops receiving this, it suppresses leak detection
-  // to avoid falsely closing the valve when this device is offline.
+  // ── Heartbeat every 1 second ─────────────────────────────────────────────
+  // Tells the inlet ESP32 this device is alive.
+  // If inlet stops receiving this, leak detection is suppressed
+  // to avoid falsely closing the valve when this device goes offline.
   if (currentMillis - previousHeartbeatMillis > heartbeatInterval) {
     previousHeartbeatMillis = currentMillis;
     client.publish(TOPIC_OUTLET_HEARTBEAT, "1");
