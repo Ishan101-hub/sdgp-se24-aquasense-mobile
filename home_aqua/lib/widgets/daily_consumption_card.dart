@@ -54,41 +54,122 @@ class DailyConsumptionCard extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          // ── EMPTY STATE ──
-          if (zones.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'No zones found.\nCheck your device connections.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Color(0xFF888888),
-                  fontSize: 13,
-                ),
+          // ── ZONE CIRCLES (only if zones exist) ──
+          if (zones.isNotEmpty)
+            ...List.generate(
+              (zones.length / 3).ceil(),
+              (rowIndex) {
+                final rowZones = zones.sublist(
+                  rowIndex * 3,
+                  math.min(rowIndex * 3 + 3, zones.length),
+                );
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: rowZones.map((zone) {
+                      return _ZoneCircle(zone: zone);
+                    }).toList(),
+                  ),
+                );
+              },
+            ),
+
+          // ── ADD A DEVICE CARD (ALWAYS shows at bottom) ──
+          // User can always tap this to add a new ESP32 device
+          _AddDeviceCard(),
+
+        ],
+      ),
+    );
+  }
+}
+
+
+// ── ADD A DEVICE CARD ─────────────────────────────────────────
+// Always visible at the bottom of Daily Consumption card
+// When tapped → will connect to backend to register new device
+class _AddDeviceCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        // ── TODO: When backend ready ──
+        // Navigate to device setup page or
+        // call FastAPI to register new ESP32 device
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Device setup coming soon!'),
+            backgroundColor: Color(0xFF1A1A6E),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEEF4FF),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFF1A1A6E).withValues(alpha: 0.2),
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+
+            // ── "+" icon ──
+            Container(
+              width: 36,
+              height: 36,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xFF1A1A6E),
+              ),
+              child: const Icon(
+                Icons.add,
+                color: Colors.white,
+                size: 22,
               ),
             ),
 
-          // ── DYNAMIC ZONES: rows of 3 ──
-          ...List.generate(
-            (zones.length / 3).ceil(),
-            (rowIndex) {
-              final rowZones = zones.sublist(
-                rowIndex * 3,
-                math.min(rowIndex * 3 + 3, zones.length),
-              );
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: rowZones.map((zone) {
-                    return _ZoneCircle(zone: zone);
-                  }).toList(),
-                ),
-              );
-            },
-          ),
+            const SizedBox(width: 12),
 
-        ],
+            // ── Text ──
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Add a Device',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1A1A6E),
+                  ),
+                ),
+                Text(
+                  'Tap to connect a new ESP32 sensor',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF888888),
+                  ),
+                ),
+              ],
+            ),
+
+            const Spacer(),
+
+            // ── Arrow icon ──
+            const Icon(
+              Icons.arrow_forward_ios,
+              color: Color(0xFF1A1A6E),
+              size: 16,
+            ),
+
+          ],
+        ),
       ),
     );
   }
@@ -107,13 +188,16 @@ class _ZoneCircle extends StatelessWidget {
     final double progress  = isOverLimit
         ? 1.0
         : (zone.used / zone.average).clamp(0.0, 1.0);
-    final Color arcColor   = isOverLimit ? const Color(0xFFD80B0B) : const Color(0xFF1A1A6E);
-    final Color textColor  = isOverLimit ? const Color(0xFFD80B0B) : const Color(0xFF1A1A6E);
+    final Color arcColor   = isOverLimit
+        ? const Color(0xFFD80B0B)
+        : const Color(0xFF1A1A6E);
+    final Color textColor  = isOverLimit
+        ? const Color(0xFFD80B0B)
+        : const Color(0xFF1A1A6E);
 
     return Column(
       children: [
 
-        // ── CIRCULAR ARC ──
         SizedBox(
           width: 95,
           height: 95,
@@ -121,7 +205,6 @@ class _ZoneCircle extends StatelessWidget {
             alignment: Alignment.center,
             children: [
 
-              // Grey background arc
               CustomPaint(
                 size: const Size(95, 95),
                 painter: _ArcPainter(
@@ -131,7 +214,6 @@ class _ZoneCircle extends StatelessWidget {
                 ),
               ),
 
-              // Colored progress arc
               CustomPaint(
                 size: const Size(95, 95),
                 painter: _ArcPainter(
@@ -141,12 +223,10 @@ class _ZoneCircle extends StatelessWidget {
                 ),
               ),
 
-              // ── FIXED: 1 decimal point inside circle ──
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    // ← toStringAsFixed(1) gives 1 decimal e.g. 80.0
                     zone.used.toStringAsFixed(1),
                     style: TextStyle(
                       fontSize: 18,
@@ -172,7 +252,6 @@ class _ZoneCircle extends StatelessWidget {
 
         const SizedBox(height: 8),
 
-        // Zone name
         Text(
           zone.name,
           style: const TextStyle(
@@ -182,13 +261,12 @@ class _ZoneCircle extends StatelessWidget {
           ),
         ),
 
-        // Warning if over limit
         if (isOverLimit)
           const Text(
             'Over limit!',
             style: TextStyle(
               fontSize: 10,
-              color: const Color(0xFFD80B0B),
+              color: Color(0xFFD80B0B),
               fontWeight: FontWeight.w500,
             ),
           ),
