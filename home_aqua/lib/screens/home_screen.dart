@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/custom_bottom_nav.dart';
 import 'home_page.dart';
+import 'leakages_page.dart'; // ← new import
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -12,26 +13,25 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
-  // ── FIXED: added const to all _PlaceholderPage ──
-  final List<Widget> _pages = const [
-    HomePage(),
-    _PlaceholderPage('Leakages'),
-    _PlaceholderPage('Report'),
-    _PlaceholderPage('Service'),
-    _PlaceholderPage('Settings'),
-  ];
-
   @override
   Widget build(BuildContext context) {
+
+    // ── Pages for each tab ──
+    final List<Widget> pages = const [
+      HomePage(),        // Tab 0: Home
+      LeakagesPage(),    // Tab 1: Leakages ← connected! ✅
+      _PlaceholderPage('Report'),   // Tab 2
+      _PlaceholderPage('Service'),  // Tab 3
+      _PlaceholderPage('Settings'), // Tab 4
+    ];
+
     return Scaffold(
       backgroundColor: const Color(0xFFEEF4FF),
-      body: _pages[_currentIndex],
+      body: pages[_currentIndex],
       bottomNavigationBar: CustomBottomNav(
         currentIndex: _currentIndex,
         onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
+          setState(() => _currentIndex = index);
         },
       ),
     );
