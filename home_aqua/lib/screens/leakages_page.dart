@@ -3,37 +3,50 @@ import '../widgets/leakage_card.dart';
 import '../widgets/bell_button.dart';
 
 class LeakagesPage extends StatelessWidget {
-  const LeakagesPage({super.key});
+  // ── Receives switchTab from HomeScreen ──
+  final void Function(int tabIndex) onSwitchTab;
+
+  const LeakagesPage({
+    super.key,
+    required this.onSwitchTab,
+  });
 
   @override
   Widget build(BuildContext context) {
 
-    // ── TEST DATA ──
     const List<PipelineZone> zones = [
+      PipelineZone(name: 'Kitchen',  inFlow: 23.1, outFlow: 15.7, isValveOpen: true),
+      PipelineZone(name: 'Washroom', inFlow: 23.1, outFlow: 23.1, isValveOpen: false, isValveClosed: true),
+      PipelineZone(name: 'Outdoor',  inFlow: 23.1, outFlow: 23.1, isValveOpen: true),
+    ];
 
-      // Kitchen → RED (leak)
-      PipelineZone(
-        name: 'Kitchen',
-        inFlow: 23.1,
-        outFlow: 15.7,
-        isValveOpen: true,
-      ),
+    // ── Auto-generate notifications from pipeline data ──
+    final List<AppNotification> notifications = [
 
-      // Washroom → YELLOW (valve closed)
-      PipelineZone(
-        name: 'Washroom',
-        inFlow: 23.1,
-        outFlow: 23.1,
-        isValveOpen: false,
-        isValveClosed: true,
-      ),
+      // Kitchen leak → tap → go to Leakages tab (tab 1)
+      ...zones
+          .where((z) => (z.inFlow - z.outFlow) >= 0.1 && z.isValveOpen)
+          .map((z) => AppNotification(
+                title: 'Leak Detected: ${z.name}',
+                message:
+                    'A water leak has been detected in the ${z.name} pipeline. '
+                    'IN: ${z.inFlow.toStringAsFixed(1)} L/min, '
+                    'OUT: ${z.outFlow.toStringAsFixed(1)} L/min. '
+                    'Please check immediately.',
+                type: 'leak',
+                time: '5 mins ago',
+                targetTabIndex: 1, // → Leakages tab ✅
+              )),
 
-      // Outdoor → NAVY (normal)
-      PipelineZone(
-        name: 'Outdoor',
-        inFlow: 23.1,
-        outFlow: 23.1,
-        isValveOpen: true,
+      // Bathroom over limit → tap → go to Home tab (tab 0)
+      const AppNotification(
+        title: 'Over Limit: Bathroom',
+        message:
+            'Bathroom consumption reached 140.0L, '
+            'exceeding the daily average of 120.0L.',
+        type: 'consumption',
+        time: 'Just now',
+        targetTabIndex: 0, // → Home tab ✅
       ),
 
     ];
@@ -47,31 +60,31 @@ class LeakagesPage extends StatelessWidget {
             child: Column(
               children: [
 
-                // ── Zone cards ──
-                ...zones.map((zone) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: LeakageCard(
-                      zone: zone,
-                      onValveToggle: (isOpen) {
-                        // TODO: http.post('/valve/${zone.name}', body: {'open': isOpen})
-                      },
-                    ),
-                  );
-                }),
+                ...zones.map((zone) => Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: LeakageCard(
+                    zone: zone,
+                    onValveToggle: (isOpen) {
+                      // TODO: API call to open/close valve
+                    },
+                  ),
+                )),
 
-                // ── PART 4: Add a Device card ──
                 const _AddDeviceCard(),
 
               ],
             ),
           ),
 
-          // Bell with red dot (Kitchen has leak)
+          // ── Bell gets onSwitchTab callback ──
           Positioned(
             bottom: 16,
             right: 16,
-            child: BellButton(hasNotification: true),
+            child: BellButton(
+              hasNotification: notifications.isNotEmpty,
+              notifications: notifications,
+              onSwitchTab: onSwitchTab, // ← passed through ✅
+            ),
           ),
 
         ],
@@ -81,9 +94,7 @@ class LeakagesPage extends StatelessWidget {
 }
 
 
-// ── ADD A DEVICE CARD ─────────────────────────────────────────
-// Always visible at the bottom
-// User taps to connect a new ESP32 pipeline device
+// ── Add a Device Card ─────────────────────────────────────────
 class _AddDeviceCard extends StatelessWidget {
   const _AddDeviceCard();
 
@@ -91,9 +102,6 @@ class _AddDeviceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        // TODO: When backend ready →
-        // Navigate to device setup page
-        // or call FastAPI to register new ESP32 device
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Device setup coming soon!'),
@@ -121,10 +129,7 @@ class _AddDeviceCard extends StatelessWidget {
           ],
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-
-            // ── "+" circle ──
             Container(
               width: 40,
               height: 40,
@@ -132,16 +137,9 @@ class _AddDeviceCard extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: Color(0xFF1A1A6E),
               ),
-              child: const Icon(
-                Icons.add,
-                color: Colors.white,
-                size: 24,
-              ),
+              child: const Icon(Icons.add, color: Colors.white, size: 24),
             ),
-
             const SizedBox(width: 14),
-
-            // ── Text ──
             const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,22 +154,12 @@ class _AddDeviceCard extends StatelessWidget {
                   ),
                   Text(
                     'Tap to connect a new ESP32 pipeline sensor',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF888888),
-                    ),
+                    style: TextStyle(fontSize: 11, color: Color(0xFF888888)),
                   ),
                 ],
               ),
             ),
-
-            // ── Arrow ──
-            const Icon(
-              Icons.arrow_forward_ios,
-              color: Color(0xFF1A1A6E),
-              size: 16,
-            ),
-
+            const Icon(Icons.arrow_forward_ios, color: Color(0xFF1A1A6E), size: 16),
           ],
         ),
       ),

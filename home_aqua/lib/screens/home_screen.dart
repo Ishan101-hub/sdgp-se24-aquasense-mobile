@@ -1,28 +1,34 @@
 import 'package:flutter/material.dart';
 import '../widgets/custom_bottom_nav.dart';
 import 'home_page.dart';
-import 'leakages_page.dart'; // ← new import
+import 'leakages_page.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeScreen> createState() => HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+
+  // ── Called when user taps a notification ──
+  // This switches the bottom nav tab correctly
+  void switchTab(int index) {
+    setState(() => _currentIndex = index);
+  }
 
   @override
   Widget build(BuildContext context) {
-
-    // ── Pages for each tab ──
-    final List<Widget> pages = const [
-      HomePage(),        // Tab 0: Home
-      LeakagesPage(),    // Tab 1: Leakages ← connected! ✅
-      _PlaceholderPage('Report'),   // Tab 2
-      _PlaceholderPage('Service'),  // Tab 3
-      _PlaceholderPage('Settings'), // Tab 4
+    // ── Pass switchTab as callback into pages ──
+    // This way pages can call it from anywhere, even inside Navigator.push
+    final List<Widget> pages = [
+      HomePage(onSwitchTab: switchTab),       // Tab 0
+      LeakagesPage(onSwitchTab: switchTab),   // Tab 1
+      const _PlaceholderPage('Report'),       // Tab 2
+      const _PlaceholderPage('Service'),      // Tab 3
+      const _PlaceholderPage('Settings'),     // Tab 4
     ];
 
     return Scaffold(
@@ -30,9 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: pages[_currentIndex],
       bottomNavigationBar: CustomBottomNav(
         currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() => _currentIndex = index);
-        },
+        onTap: (index) => setState(() => _currentIndex = index),
       ),
     );
   }

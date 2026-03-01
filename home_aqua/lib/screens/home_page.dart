@@ -7,24 +7,57 @@ import '../widgets/usage_chart_card.dart';
 import '../widgets/usage_summary_card.dart';
 
 class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+  // ── Receives switchTab from HomeScreen ──
+  final void Function(int tabIndex) onSwitchTab;
+
+  const HomePage({
+    super.key,
+    required this.onSwitchTab,
+  });
 
   @override
   Widget build(BuildContext context) {
 
-    // ── SINGLE SOURCE OF TRUTH ──
     const List<WaterZone> zones = [
       WaterZone(name: 'Kitchen',  used: 80,  average: 100),
-      WaterZone(name: 'Bathroom', used: 140, average: 120),
+      WaterZone(name: 'Bathroom', used: 140, average: 120), // over limit!
       WaterZone(name: 'Outdoor',  used: 50,  average: 80),
     ];
 
-    // Auto-calculated from zones
     final double totalUsed    = zones.fold(0, (sum, z) => sum + z.used);
     final double totalAverage = zones.fold(0, (sum, z) => sum + z.average);
     final double percent      = totalAverage > 0
         ? (totalUsed / totalAverage * 100).clamp(0, 999)
         : 0;
+
+    // ── Auto-generate notifications from zone data ──
+    final List<AppNotification> notifications = [
+
+      // Bathroom over limit → tap → go to Home tab (tab 0)
+      ...zones
+          .where((z) => z.used >= z.average)
+          .map((z) => AppNotification(
+                title: 'Over Limit: ${z.name}',
+                message:
+                    '${z.name} consumption reached ${z.used.toStringAsFixed(1)}L, '
+                    'exceeding the daily average of ${z.average.toStringAsFixed(1)}L.',
+                type: 'consumption',
+                time: 'Just now',
+                targetTabIndex: 0, // → Home tab ✅
+              )),
+
+      // Kitchen leak → tap → go to Leakages tab (tab 1)
+      const AppNotification(
+        title: 'Leak Detected: Kitchen',
+        message:
+            'A water leak has been detected in the Kitchen pipeline. '
+            'IN: 23.1 L/min, OUT: 15.7 L/min. Please check immediately.',
+        type: 'leak',
+        time: '5 mins ago',
+        targetTabIndex: 1, // → Leakages tab ✅
+      ),
+
+    ];
 
     return SafeArea(
       child: Stack(
@@ -35,7 +68,6 @@ class HomePage extends StatelessWidget {
             child: Column(
               children: [
 
-                // ── Today + Water Status ──
                 IntrinsicHeight(
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -54,21 +86,10 @@ class HomePage extends StatelessWidget {
                 ),
 
                 const SizedBox(height: 16),
-
-                // ── Daily Consumption ──
                 DailyConsumptionCard(zones: zones),
-
                 const SizedBox(height: 16),
-
-                // ── Usage Chart ──
                 UsageChartCard(todayUsage: totalUsed),
-
                 const SizedBox(height: 16),
-
-                // ── Usage Summary ──
-                // Daily < Weekly < Monthly ✅
-                // Weekly  = daily × 7
-                // Monthly = daily × 30
                 UsageSummaryCard(
                   dailyAverage:       totalAverage,
                   dailyConsumption:   totalUsed,
@@ -82,11 +103,15 @@ class HomePage extends StatelessWidget {
             ),
           ),
 
-          // ── Bell button ──
+          // ── Bell gets onSwitchTab callback ──
           Positioned(
             bottom: 16,
             right: 16,
-            child: BellButton(hasNotification: false),
+            child: BellButton(
+              hasNotification: notifications.isNotEmpty,
+              notifications: notifications,
+              onSwitchTab: onSwitchTab, // ← passed through ✅
+            ),
           ),
 
         ],
