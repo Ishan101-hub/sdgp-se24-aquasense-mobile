@@ -111,44 +111,43 @@ class _LeakageCardState extends State<LeakageCard> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
 
-          // ── TOP ROW: Leak label + Zone name + warning icon ──
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
+          // ── TOP ROW: fixed height so card never resizes ──
+          // SizedBox with fixed height = always same space
+          // whether label shows or not
+          SizedBox(
+            height: 20, // ← fixed height always!
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
 
-              // Leak Detected label (only shows when leak)
-              if (hasLeak)
-                const Text(
-                  'Leak Detected',
+                // Status label — same space always, text just changes
+                Text(
+                  hasLeak
+                      ? 'Leak Detected'
+                      : !_isValveOpen
+                          ? 'Valve Closed'
+                          : '', // empty string = invisible but still takes space
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
+                    color: hasLeak
+                        ? const Color(0xFFD80B0B)
+                        : const Color(0xFFE6A817),
+                  ),
+                ),
+
+                // Warning icon — Opacity 0 = invisible but still takes space
+                Opacity(
+                  opacity: hasLeak ? 1.0 : 0.0,
+                  child: const Icon(
+                    Icons.warning_amber_rounded,
                     color: Color(0xFFD80B0B),
+                    size: 20,
                   ),
-                )
-              else if (!_isValveOpen)
-                const Text(
-                  'Valve Closed',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFFE6A817),
-                  ),
-                )
-              else
-                const SizedBox(), // empty space when normal
+                ),
 
-              // Warning icon (only when leak)
-              if (hasLeak)
-                const Icon(
-                  Icons.warning_amber_rounded,
-                  color: Color(0xFFD80B0B),
-                  size: 20,
-                )
-              else
-                const SizedBox(),
-
-            ],
+              ],
+            ),
           ),
 
           // Zone name (centered)
@@ -170,8 +169,13 @@ class _LeakageCardState extends State<LeakageCard> {
             children: [
 
               // ── LEFT: IN flow sensor ──
+              // maxFlow used to calculate relative arc fill
+              // 23.1 / 23.1 = 1.0 → full arc ✅
               _FlowCircle(
                 value: widget.zone.inFlow,
+                maxFlow: widget.zone.inFlow > widget.zone.outFlow
+                    ? widget.zone.inFlow
+                    : widget.zone.outFlow,
                 label: 'IN',
                 color: borderColor,
               ),
@@ -200,8 +204,12 @@ class _LeakageCardState extends State<LeakageCard> {
               ),
 
               // ── RIGHT: OUT flow sensor ──
+              // 15.7 / 23.1 = 0.68 → 68% arc ✅ smaller than IN
               _FlowCircle(
                 value: widget.zone.outFlow,
+                maxFlow: widget.zone.inFlow > widget.zone.outFlow
+                    ? widget.zone.inFlow
+                    : widget.zone.outFlow,
                 label: 'OUT',
                 color: borderColor,
               ),
@@ -218,20 +226,29 @@ class _LeakageCardState extends State<LeakageCard> {
 
 // ── FLOW CIRCLE ──────────────────────────────────────────────
 // Circular arc showing L/min value
-// Same arc style as Today card and Daily Consumption card
+// Arc fill = value / maxFlow → bigger value = more filled arc
 class _FlowCircle extends StatelessWidget {
-  final double value; // L/min
-  final String label; // "IN" or "OUT"
-  final Color color;  // matches card border color
+  final double value;    // L/min this sensor
+  final double maxFlow;  // highest flow between IN and OUT (for scaling)
+  final String label;    // "IN" or "OUT"
+  final Color color;
 
   const _FlowCircle({
     required this.value,
+    required this.maxFlow,
     required this.label,
     required this.color,
   });
 
   @override
   Widget build(BuildContext context) {
+    // ── PROGRESS: relative to max flow ──
+    // IN  23.1 / 23.1 = 1.00 → full arc   ✅
+    // OUT 15.7 / 23.1 = 0.68 → 68% arc    ✅
+    final double progress = maxFlow > 0
+        ? (value / maxFlow).clamp(0.0, 1.0)
+        : 0.0;
+
     return Column(
       children: [
 
@@ -242,19 +259,21 @@ class _FlowCircle extends StatelessWidget {
             alignment: Alignment.center,
             children: [
 
-              // Grey background arc
+              // Grey background arc (always full)
               CustomPaint(
                 size: const Size(85, 85),
                 painter: _ArcPainter(
+                  progress: 1.0,
                   color: const Color(0xFFE0E0E0),
                   strokeWidth: 7,
                 ),
               ),
 
-              // Colored arc (always full — just decorative like screenshot)
+              // Colored arc — fills based on relative speed ✅
               CustomPaint(
                 size: const Size(85, 85),
                 painter: _ArcPainter(
+                  progress: progress,
                   color: color,
                   strokeWidth: 7,
                 ),
@@ -290,7 +309,6 @@ class _FlowCircle extends StatelessWidget {
 
         const SizedBox(height: 4),
 
-        // IN / OUT label below circle
         Text(
           label,
           style: TextStyle(
@@ -308,10 +326,12 @@ class _FlowCircle extends StatelessWidget {
 
 // ── ARC PAINTER ──────────────────────────────────────────────
 class _ArcPainter extends CustomPainter {
+  final double progress; // 0.0 to 1.0
   final Color color;
   final double strokeWidth;
 
   _ArcPainter({
+    required this.progress,
     required this.color,
     required this.strokeWidth,
   });
@@ -328,9 +348,8 @@ class _ArcPainter extends CustomPainter {
     final double centerY = size.height / 2;
     final double radius  = (size.width - strokeWidth) / 2;
 
-    // Same arc style as rest of the app
     const double startAngle = 140 * math.pi / 180;
-    const double sweepAngle = 260 * math.pi / 180;
+    final double sweepAngle = 260 * math.pi / 180 * progress;
 
     canvas.drawArc(
       Rect.fromCircle(center: Offset(centerX, centerY), radius: radius),
@@ -342,5 +361,6 @@ class _ArcPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_ArcPainter oldDelegate) => false;
+  bool shouldRepaint(_ArcPainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.color != color;
 }

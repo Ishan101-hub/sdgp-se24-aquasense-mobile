@@ -10,29 +10,39 @@ class LeakagesPage extends StatelessWidget {
 
     // ── TEST DATA ──
     // When backend ready, replace with real FastAPI data
-    // Kitchen: inFlow=23.1, outFlow=15.7 → diff=7.4 >= 0.1 → LEAK! → RED
     const List<PipelineZone> zones = [
+
+      // ── PART 1: Kitchen ──
+      // inFlow - outFlow = 23.1 - 15.7 = 7.4 >= 0.1 → LEAK! → RED
       PipelineZone(
         name: 'Kitchen',
-        inFlow: 23.1,   // IN sensor
-        outFlow: 15.7,  // OUT sensor
+        inFlow: 23.1,
+        outFlow: 15.7,
         isValveOpen: true,
-        // diff = 23.1 - 15.7 = 7.4 >= 0.1 → leak detected! RED ✅
       ),
-      // Parts 2 and 3 will be added here (Washroom, Outdoor)
+
+      // ── PART 2: Washroom ──
+      // isValveOpen = false → valve manually closed → YELLOW
+      // No leak because valve is closed by user
+      PipelineZone(
+        name: 'Washroom',
+        inFlow: 23.1,
+        outFlow: 23.1, // equal → no leak
+        isValveOpen: false, // ← manually closed → yellow state
+        isValveClosed: true,
+      ),
+
     ];
 
     return SafeArea(
       child: Stack(
         children: [
 
-          // ── SCROLLABLE CONTENT ──
           SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
             child: Column(
               children: [
 
-                // ── Build one LeakageCard per zone ──
                 ...zones.map((zone) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 16),
@@ -40,8 +50,7 @@ class LeakagesPage extends StatelessWidget {
                       zone: zone,
                       onValveToggle: (isOpen) {
                         // TODO: When backend ready:
-                        // Call FastAPI to open/close ESP32 valve
-                        // e.g. http.post('/valve/${zone.name}', body: {'open': isOpen})
+                        // http.post('/valve/${zone.name}', body: {'open': isOpen})
                       },
                     ),
                   );
@@ -51,11 +60,11 @@ class LeakagesPage extends StatelessWidget {
             ),
           ),
 
-          // ── BELL BUTTON ──
+          // Bell with red dot because Kitchen has leak
           Positioned(
             bottom: 16,
             right: 16,
-            child: BellButton(hasNotification: true), // true = leak = red dot
+            child: BellButton(hasNotification: true),
           ),
 
         ],
