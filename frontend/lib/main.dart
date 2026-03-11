@@ -1,22 +1,59 @@
 import 'package:flutter/material.dart';
-import 'screens/home_screen.dart';
+import 'package:provider/provider.dart';
 
-void main() {
-  runApp(const MyApp());
+import 'screens/home_screen.dart';
+import 'screens/login_page.dart';
+import 'screens/registration_page.dart';
+import 'screens/splash_screen.dart';
+import 'theme_provider.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final themeProvider = ThemeProvider();
+  await themeProvider.init();
+
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => themeProvider,
+      child: MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+
+    final tp = context.watch<ThemeProvider>();
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Aqua Sense',
-      theme: ThemeData(
+
+      /// Theme mode
+      themeMode: tp.themeMode,
+
+      /// Light theme
+      theme: ThemeProvider.lightTheme(tp.fontSize).copyWith(
         primaryColor: const Color(0xFF0A1B6F),
       ),
-      home: HomeScreen(),
+
+      /// Dark theme
+      darkTheme: ThemeProvider.darkTheme(tp.fontSize).copyWith(
+        primaryColor: const Color(0xFF0A1B6F),
+      ),
+
+      initialRoute: '/splash',
+
+      routes: {
+        '/splash': (context) => SplashScreen(),
+        '/login': (context) => LoginPage(),
+        '/register': (context) => RegistrationPage(),
+        '/home': (context) => HomeScreen(),
+      },
     );
   }
 }
