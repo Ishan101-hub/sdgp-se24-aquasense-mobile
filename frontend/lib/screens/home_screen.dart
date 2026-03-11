@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../widgets/custom_bottom_nav.dart';
 import 'settings_screen.dart';
+import 'usage_screen.dart';
+import 'services_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -150,8 +152,8 @@ class _HomeScreenState extends State<HomeScreen>
   final List<Widget> pages = [
     const Center(child: Text("Home",style: TextStyle(fontSize: 22))),
     const Center(child: Text("Leakages",style: TextStyle(fontSize: 22))),
-    const Center(child: Text("Report",style: TextStyle(fontSize: 22))),
-    const Center(child: Text("Service",style: TextStyle(fontSize: 22))),
+    const UsageScreen(),
+    const ServicesScreen(),
     const SettingsScreen(),
   ];
 
@@ -248,54 +250,54 @@ class _HomeScreenState extends State<HomeScreen>
       width: double.infinity,
       color: const Color(0xFF0B1B66),
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
-child: Row(
-  crossAxisAlignment: CrossAxisAlignment.center,
-  children: [
-    Padding(
-      padding: const EdgeInsets.only(left: 12),
-      child: Transform.scale(
-        scale: 1.8,
-        child: Image.asset(
-          'assets/icons/headerLogo.png',
-          height: 120,
-          fit: BoxFit.contain,
-        ),
-      ),
-    ),
-    const Spacer(),
-    GestureDetector(
-      onTap: _showDistrictPicker,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.3),
-            width: 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.location_on, color: Colors.white, size: 15),
-            const SizedBox(width: 4),
-            Text(
-              _selectedDistrict,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 12),
+            child: Transform.scale(
+              scale: 1.8,
+              child: Image.asset(
+                'assets/icons/headerLogo.png',
+                height: 120,
+                fit: BoxFit.contain,
               ),
             ),
-            const SizedBox(width: 3),
-            const Icon(Icons.keyboard_arrow_down,
-                color: Colors.white, size: 16),
-          ],
-        ),
+          ),
+          const Spacer(),
+          GestureDetector(
+            onTap: _showDistrictPicker,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.location_on, color: Colors.white, size: 15),
+                  const SizedBox(width: 4),
+                  Text(
+                    _selectedDistrict,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(width: 3),
+                  const Icon(Icons.keyboard_arrow_down,
+                      color: Colors.white, size: 16),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
-    ),
-  ],
-),
     );
   }
 

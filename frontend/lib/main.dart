@@ -26,7 +26,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     final tp = context.watch<ThemeProvider>();
 
     return MaterialApp(
@@ -46,8 +45,10 @@ class MyApp extends StatelessWidget {
         primaryColor: const Color(0xFF0A1B6F),
       ),
 
+      /// First screen
       initialRoute: '/splash',
 
+      /// App routes
       routes: {
         '/splash': (context) => SplashScreen(),
         '/login': (context) => LoginPage(),
