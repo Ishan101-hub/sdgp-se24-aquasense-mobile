@@ -30,30 +30,32 @@ class MyApp extends StatelessWidget {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Aqua Sense',
+      title: 'AquaSense',
 
-      /// Theme mode
       themeMode: tp.themeMode,
 
-      /// Light theme
       theme: ThemeProvider.lightTheme(tp.fontSize).copyWith(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF0A1B6F),
+        ),
         primaryColor: const Color(0xFF0A1B6F),
       ),
 
-      /// Dark theme
       darkTheme: ThemeProvider.darkTheme(tp.fontSize).copyWith(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF0A1B6F),
+          brightness: Brightness.dark,
+        ),
         primaryColor: const Color(0xFF0A1B6F),
       ),
 
-      /// First screen
       initialRoute: '/splash',
 
-      /// App routes
       routes: {
         '/splash': (context) => SplashScreen(),
         '/login': (context) => LoginPage(),
         '/register': (context) => RegistrationPage(),
-        '/home': (context) => HomeScreen(),
+        '/home': (context) => const HomeScreen(),
       },
     );
   }

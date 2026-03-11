@@ -3,6 +3,8 @@ import '../widgets/custom_bottom_nav.dart';
 import 'settings_screen.dart';
 import 'usage_screen.dart';
 import 'services_screen.dart';
+import 'home_page.dart';
+import 'leakages_page.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -38,6 +40,10 @@ class _HomeScreenState extends State<HomeScreen>
   ];
 
   int get _unreadCount => _notifications.where((n) => !n.isRead).length;
+
+  void switchTab(int index) {
+    setState(() => selectedIndex = index);
+  }
 
   @override
   void initState() {
@@ -149,9 +155,9 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  final List<Widget> pages = [
-    const Center(child: Text("Home",style: TextStyle(fontSize: 22))),
-    const Center(child: Text("Leakages",style: TextStyle(fontSize: 22))),
+  late final List<Widget> pages = [
+    HomePage(onSwitchTab: switchTab),
+    LeakagesPage(onSwitchTab: switchTab),
     const UsageScreen(),
     const ServicesScreen(),
     const SettingsScreen(),
@@ -162,7 +168,7 @@ class _HomeScreenState extends State<HomeScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
+      backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFEEF4FF),
       body: Stack(
         children: [
           SafeArea(
