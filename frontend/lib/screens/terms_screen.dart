@@ -9,13 +9,15 @@ class TermsScreen extends StatefulWidget {
 
 class _TermsScreenState extends State<TermsScreen> {
   bool _acceptTerms = false;
-  bool _acceptPrivacy = false;
-  bool _acceptDataCollection = false;
-  bool _acceptCookies = false;
-  bool _acceptMarketing = false;
 
-  bool get _canProceed =>
-      _acceptTerms && _acceptPrivacy && _acceptDataCollection;
+  // bool _acceptPrivacy = false;
+  // bool _acceptDataCollection = false;
+  // bool _acceptCookies = false;
+  // bool _acceptMarketing = false;
+
+  bool get _canProceed => _acceptTerms;
+  // bool get _canProceed =>
+  //     _acceptTerms && _acceptPrivacy && _acceptDataCollection;
 
   @override
   Widget build(BuildContext context) {
@@ -137,39 +139,43 @@ class _TermsScreenState extends State<TermsScreen> {
                     isRequired: true,
                     onChanged: (val) => setState(() => _acceptTerms = val!),
                   ),
-                  _buildDivider(),
-                  _buildCheckTile(
-                    title: 'I accept the Privacy Policy',
-                    subtitle: 'Required — covers how your data is handled',
-                    value: _acceptPrivacy,
-                    isRequired: true,
-                    onChanged: (val) => setState(() => _acceptPrivacy = val!),
-                  ),
-                  _buildDivider(),
-                  _buildCheckTile(
-                    title: 'I consent to IoT Data Collection',
-                    subtitle: 'Required — sensor data, usage logs',
-                    value: _acceptDataCollection,
-                    isRequired: true,
-                    onChanged: (val) =>
-                        setState(() => _acceptDataCollection = val!),
-                  ),
-                  _buildDivider(),
-                  _buildCheckTile(
-                    title: 'I accept Cookie Policy',
-                    subtitle: 'Optional — analytics & session cookies',
-                    value: _acceptCookies,
-                    onChanged: (val) => setState(() => _acceptCookies = val!),
-                  ),
-                  _buildDivider(),
-                  _buildCheckTile(
-                    title: 'Receive tips & product updates',
-                    subtitle: 'Optional — marketing communications',
-                    value: _acceptMarketing,
-                    isLast: true,
-                    onChanged: (val) =>
-                        setState(() => _acceptMarketing = val!),
-                  ),
+
+                  // _buildDivider(),
+                  // _buildCheckTile(
+                  //   title: 'I accept the Privacy Policy',
+                  //   subtitle: 'Required — covers how your data is handled',
+                  //   value: _acceptPrivacy,
+                  //   isRequired: true,
+                  //   onChanged: (val) => setState(() => _acceptPrivacy = val!),
+                  // ),
+
+                  // _buildDivider(),
+                  // _buildCheckTile(
+                  //   title: 'I consent to IoT Data Collection',
+                  //   subtitle: 'Required — sensor data, usage logs',
+                  //   value: _acceptDataCollection,
+                  //   isRequired: true,
+                  //   onChanged: (val) =>
+                  //       setState(() => _acceptDataCollection = val!),
+                  // ),
+
+                  // _buildDivider(),
+                  // _buildCheckTile(
+                  //   title: 'I accept Cookie Policy',
+                  //   subtitle: 'Optional — analytics & session cookies',
+                  //   value: _acceptCookies,
+                  //   onChanged: (val) => setState(() => _acceptCookies = val!),
+                  // ),
+
+                  // _buildDivider(),
+                  // _buildCheckTile(
+                  //   title: 'Receive tips & product updates',
+                  //   subtitle: 'Optional — marketing communications',
+                  //   value: _acceptMarketing,
+                  //   isLast: true,
+                  //   onChanged: (val) =>
+                  //       setState(() => _acceptMarketing = val!),
+                  // ),
                 ],
               ),
             ),
@@ -190,8 +196,7 @@ class _TermsScreenState extends State<TermsScreen> {
                     ? () {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content:
-                                Text('Agreements saved successfully!'),
+                            content: Text('Agreements saved successfully!'),
                             backgroundColor: Color(0xFF0A1B6F),
                           ),
                         );
