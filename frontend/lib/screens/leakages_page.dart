@@ -3,7 +3,6 @@ import '../widgets/leakage_card.dart';
 import '../widgets/bell_button.dart';
 
 class LeakagesPage extends StatelessWidget {
-  // ── Receives switchTab from HomeScreen ──
   final void Function(int tabIndex) onSwitchTab;
 
   const LeakagesPage({
@@ -14,16 +13,16 @@ class LeakagesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     const List<PipelineZone> zones = [
       PipelineZone(name: 'Kitchen',  inFlow: 23.1, outFlow: 15.7, isValveOpen: true),
       PipelineZone(name: 'Washroom', inFlow: 23.1, outFlow: 23.1, isValveOpen: false, isValveClosed: true),
       PipelineZone(name: 'Outdoor',  inFlow: 23.1, outFlow: 23.1, isValveOpen: true),
     ];
 
-    // ── Auto-generate notifications from pipeline data ──
     final List<AppNotification> notifications = [
 
-      // Kitchen leak → tap → go to Leakages tab (tab 1)
       ...zones
           .where((z) => (z.inFlow - z.outFlow) >= 0.1 && z.isValveOpen)
           .map((z) => AppNotification(
@@ -35,10 +34,9 @@ class LeakagesPage extends StatelessWidget {
                     'Please check immediately.',
                 type: 'leak',
                 time: '5 mins ago',
-                targetTabIndex: 1, // → Leakages tab ✅
+                targetTabIndex: 1,
               )),
 
-      // Bathroom over limit → tap → go to Home tab (tab 0)
       const AppNotification(
         title: 'Over Limit: Bathroom',
         message:
@@ -46,60 +44,62 @@ class LeakagesPage extends StatelessWidget {
             'exceeding the daily average of 120.0L.',
         type: 'consumption',
         time: 'Just now',
-        targetTabIndex: 0, // → Home tab ✅
+        targetTabIndex: 0,
       ),
 
     ];
 
-    return SafeArea(
-      child: Stack(
-        children: [
+    return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFEEF4FF),
 
-          SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-            child: Column(
-              children: [
+      body: SafeArea(
+        child: Stack(
+          children: [
 
-                ...zones.map((zone) => Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: LeakageCard(
-                    zone: zone,
-                    onValveToggle: (isOpen) {
-                      // TODO: API call to open/close valve
-                    },
-                  ),
-                )),
+            SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+              child: Column(
+                children: [
 
-                const _AddDeviceCard(),
+                  ...zones.map((zone) => Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: LeakageCard(
+                          zone: zone,
+                          onValveToggle: (isOpen) {},
+                        ),
+                      )),
 
-              ],
+                  const _AddDeviceCard(),
+
+                ],
+              ),
             ),
-          ),
 
-          // ── Bell gets onSwitchTab callback ──
-          Positioned(
-            bottom: 16,
-            right: 16,
-            child: BellButton(
-              hasNotification: notifications.isNotEmpty,
-              notifications: notifications,
-              onSwitchTab: onSwitchTab, // ← passed through ✅
+            Positioned(
+              bottom: 16,
+              right: 16,
+              child: BellButton(
+                hasNotification: notifications.isNotEmpty,
+                notifications: notifications,
+                onSwitchTab: onSwitchTab,
+              ),
             ),
-          ),
 
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-
-// ── Add a Device Card ─────────────────────────────────────────
 class _AddDeviceCard extends StatelessWidget {
   const _AddDeviceCard();
 
   @override
   Widget build(BuildContext context) {
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return GestureDetector(
       onTap: () {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -114,15 +114,15 @@ class _AddDeviceCard extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         decoration: BoxDecoration(
-          color: const Color(0xFFEEF4FF),
+          color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFEEF4FF),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: const Color(0xFF1A1A6E).withValues(alpha: 0.2),
+            color: const Color(0xFF1A1A6E).withOpacity(0.2),
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.blue.withValues(alpha: 0.06),
+              color: Colors.black.withOpacity(0.06),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),

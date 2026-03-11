@@ -7,7 +7,6 @@ import '../widgets/usage_chart_card.dart';
 import '../widgets/usage_summary_card.dart';
 
 class HomePage extends StatelessWidget {
-  // ── Receives switchTab from HomeScreen ──
   final void Function(int tabIndex) onSwitchTab;
 
   const HomePage({
@@ -18,9 +17,11 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     const List<WaterZone> zones = [
       WaterZone(name: 'Kitchen',  used: 80,  average: 100),
-      WaterZone(name: 'Bathroom', used: 140, average: 120), // over limit!
+      WaterZone(name: 'Bathroom', used: 140, average: 120),
       WaterZone(name: 'Outdoor',  used: 50,  average: 80),
     ];
 
@@ -30,10 +31,8 @@ class HomePage extends StatelessWidget {
         ? (totalUsed / totalAverage * 100).clamp(0, 999)
         : 0;
 
-    // ── Auto-generate notifications from zone data ──
     final List<AppNotification> notifications = [
 
-      // Bathroom over limit → tap → go to Home tab (tab 0)
       ...zones
           .where((z) => z.used >= z.average)
           .map((z) => AppNotification(
@@ -43,10 +42,9 @@ class HomePage extends StatelessWidget {
                     'exceeding the daily average of ${z.average.toStringAsFixed(1)}L.',
                 type: 'consumption',
                 time: 'Just now',
-                targetTabIndex: 0, // → Home tab ✅
+                targetTabIndex: 0,
               )),
 
-      // Kitchen leak → tap → go to Leakages tab (tab 1)
       const AppNotification(
         title: 'Leak Detected: Kitchen',
         message:
@@ -54,67 +52,82 @@ class HomePage extends StatelessWidget {
             'IN: 23.1 L/min, OUT: 15.7 L/min. Please check immediately.',
         type: 'leak',
         time: '5 mins ago',
-        targetTabIndex: 1, // → Leakages tab ✅
+        targetTabIndex: 1,
       ),
 
     ];
 
-    return SafeArea(
-      child: Stack(
-        children: [
+    return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFEEF4FF),
 
-          SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-            child: Column(
-              children: [
+      body: SafeArea(
+        child: Stack(
+          children: [
 
-                IntrinsicHeight(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(
-                        child: TodayCard(
-                          litresUsed: totalUsed,
-                          dailyAverageLitres: totalAverage,
-                          dailyAveragePercent: percent,
+            SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+
+              child: Column(
+                children: [
+
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+
+                        Expanded(
+                          child: TodayCard(
+                            litresUsed: totalUsed,
+                            dailyAverageLitres: totalAverage,
+                            dailyAveragePercent: percent,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(child: WaterStatusCard()),
-                    ],
+
+                        const SizedBox(width: 12),
+
+                        const Expanded(
+                          child: WaterStatusCard(),
+                        ),
+
+                      ],
+                    ),
                   ),
-                ),
 
-                const SizedBox(height: 16),
-                DailyConsumptionCard(zones: zones),
-                const SizedBox(height: 16),
-                UsageChartCard(todayUsage: totalUsed),
-                const SizedBox(height: 16),
-                UsageSummaryCard(
-                  dailyAverage:       totalAverage,
-                  dailyConsumption:   totalUsed,
-                  weeklyAverage:      totalAverage * 7,
-                  weeklyConsumption:  totalUsed * 7,
-                  monthlyAverage:     totalAverage * 30,
-                  monthlyConsumption: totalUsed * 30,
-                ),
+                  const SizedBox(height: 16),
 
-              ],
+                  DailyConsumptionCard(zones: zones),
+
+                  const SizedBox(height: 16),
+
+                  UsageChartCard(todayUsage: totalUsed),
+
+                  const SizedBox(height: 16),
+
+                  UsageSummaryCard(
+                    dailyAverage:       totalAverage,
+                    dailyConsumption:   totalUsed,
+                    weeklyAverage:      totalAverage * 7,
+                    weeklyConsumption:  totalUsed * 7,
+                    monthlyAverage:     totalAverage * 30,
+                    monthlyConsumption: totalUsed * 30,
+                  ),
+
+                ],
+              ),
             ),
-          ),
 
-          // ── Bell gets onSwitchTab callback ──
-          Positioned(
-            bottom: 16,
-            right: 16,
-            child: BellButton(
-              hasNotification: notifications.isNotEmpty,
-              notifications: notifications,
-              onSwitchTab: onSwitchTab, // ← passed through ✅
+            Positioned(
+              bottom: 16,
+              right: 16,
+              child: BellButton(
+                hasNotification: notifications.isNotEmpty,
+                notifications: notifications,
+                onSwitchTab: onSwitchTab,
+              ),
             ),
-          ),
 
-        ],
+          ],
+        ),
       ),
     );
   }

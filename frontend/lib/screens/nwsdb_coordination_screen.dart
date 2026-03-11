@@ -6,10 +6,13 @@ class NWSDBCoordinationScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+
     const Color brandBlue = Color(0xFF0A1B6F);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFF),
+      backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF8FAFF),
+
       appBar: AppBar(
         title: const Text(
           "NWSDB Coordination",
@@ -19,10 +22,11 @@ class NWSDBCoordinationScreen extends StatelessWidget {
         foregroundColor: Colors.white,
         elevation: 0,
       ),
+
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Header Section
+
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(25),
@@ -33,10 +37,18 @@ class NWSDBCoordinationScreen extends StatelessWidget {
                   bottomRight: Radius.circular(30),
                 ),
               ),
+
               child: const Column(
                 children: [
-                  Icon(Icons.account_balance, color: Colors.white, size: 60),
+
+                  Icon(
+                    Icons.account_balance,
+                    color: Colors.white,
+                    size: 60,
+                  ),
+
                   SizedBox(height: 10),
+
                   Text(
                     "Official Coordination",
                     style: TextStyle(
@@ -45,14 +57,17 @@ class NWSDBCoordinationScreen extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+
                 ],
               ),
             ),
-            // Steps Section
+
             const Padding(
               padding: EdgeInsets.all(20),
+
               child: Column(
                 children: [
+
                   SupportCard(
                     step: 1,
                     icon: Icons.report_problem,
@@ -61,6 +76,7 @@ class NWSDBCoordinationScreen extends StatelessWidget {
                         "Share your app's leak logs with NWSDB for faster emergency repairs.",
                     color: brandBlue,
                   ),
+
                   SupportCard(
                     step: 2,
                     icon: Icons.receipt_long,
@@ -69,6 +85,7 @@ class NWSDBCoordinationScreen extends StatelessWidget {
                         "Use your 'Usage History' to dispute inaccurate water bills at the NWSDB office.",
                     color: Colors.orange,
                   ),
+
                   SupportCard(
                     step: 3,
                     icon: Icons.phone_in_talk,
@@ -77,9 +94,11 @@ class NWSDBCoordinationScreen extends StatelessWidget {
                         "Dial 1939 directly for government water supply emergencies.",
                     color: Colors.green,
                   ),
+
                 ],
               ),
             ),
+
           ],
         ),
       ),
