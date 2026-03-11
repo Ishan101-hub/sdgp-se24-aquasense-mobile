@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/custom_bottom_nav.dart';
-
+import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -70,15 +70,16 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _showDistrictPicker() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => Container(
         height: MediaQuery.of(context).size.height * 0.55,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
           children: [
@@ -92,14 +93,14 @@ class _HomeScreenState extends State<HomeScreen>
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Row(children: const [
-                Icon(Icons.location_on, color: Color(0xFF0B1B66), size: 20),
-                SizedBox(width: 8),
+              child: Row(children: [
+                const Icon(Icons.location_on, color: Color(0xFF0B1B66), size: 20),
+                const SizedBox(width: 8),
                 Text('Select District',
                     style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF0B1B66))),
+                        color: isDark ? Colors.white : const Color(0xFF0B1B66))),
               ]),
             ),
             const Divider(height: 0, thickness: 0.5),
@@ -128,7 +129,9 @@ class _HomeScreenState extends State<HomeScreen>
                             style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                color: isSelected ? const Color(0xFF0B1B66) : Colors.black87)),
+                                color: isSelected
+                                    ? const Color(0xFF0B1B66)
+                                    : (isDark ? Colors.white : Colors.black87))),
                         const Spacer(),
                         if (isSelected)
                           const Icon(Icons.check, color: Color(0xFF0B1B66), size: 18),
@@ -149,13 +152,15 @@ class _HomeScreenState extends State<HomeScreen>
     const Center(child: Text("Leakages",style: TextStyle(fontSize: 22))),
     const Center(child: Text("Report",style: TextStyle(fontSize: 22))),
     const Center(child: Text("Service",style: TextStyle(fontSize: 22))),
-    
+    const SettingsScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
       body: Stack(
         children: [
           SafeArea(
@@ -247,7 +252,7 @@ child: Row(
   crossAxisAlignment: CrossAxisAlignment.center,
   children: [
     Padding(
-      padding: const EdgeInsets.only(left: 12), //  here add left margin 
+      padding: const EdgeInsets.only(left: 12),
       child: Transform.scale(
         scale: 1.8,
         child: Image.asset(
@@ -295,13 +300,16 @@ child: Row(
   }
 
   Widget _buildNotifPanel() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final unread = _unreadCount;
     return Material(
       elevation: 16,
       borderRadius: BorderRadius.circular(22),
       shadowColor: Colors.black38,
       child: Container(
-        decoration: BoxDecoration(color: Colors.white,borderRadius: BorderRadius.circular(22)),
+        decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+            borderRadius: BorderRadius.circular(22)),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -356,7 +364,7 @@ child: Row(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
-                  color: Colors.grey[50],
+                  color: isDark ? const Color(0xFF2A2A2A) : Colors.grey[50],
                   borderRadius: const BorderRadius.vertical(bottom: Radius.circular(22)),
                 ),
                 child: const Text('Close',
@@ -371,6 +379,7 @@ child: Row(
   }
 
   Widget _buildNotifTile(_NotifItem item) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final meta = _meta(item.type);
     return InkWell(
       onTap: () => setState(() => item.isRead = true),
@@ -400,7 +409,7 @@ child: Row(
                             style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: item.isRead ? FontWeight.w500 : FontWeight.bold,
-                                color: const Color(0xFF0A1B6F))),
+                                color: isDark ? Colors.white : const Color(0xFF0A1B6F))),
                       ),
                       if (!item.isRead)
                         Container(
