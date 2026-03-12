@@ -18,10 +18,10 @@ const char* mqtt_password = "Aquasense@123@#";
 const int mqtt_port = 8883;
 
 // MQTT Topics
-#define TOPIC_INLET_FLOW "home/waterflow/sensor1/flow_rate"
-#define TOPIC_INLET_TOTAL "home/waterflow/sensor1/total_L"
-#define TOPIC_OUTLET_FLOW "home/waterflow/sensor2/flow_rate"
-#define TOPIC_OUTLET_TOTAL "home/waterflow/sensor2/total_L"
+#define TOPIC_INLET_FLOW "home/waterflow/inlet/flow_rate"
+#define TOPIC_INLET_TOTAL "home/waterflow/inlet/total_L"
+#define TOPIC_OUTLET_FLOW "home/waterflow/outlet/flow_rate"
+#define TOPIC_OUTLET_TOTAL "home/waterflow/outlet/total_L"
 #define TOPIC_VALVE_COMMAND "home/waterflow/valve/command"
 #define TOPIC_VALVE_STATUS "home/waterflow/valve/status"
 #define TOPIC_LEAK_ALERT "home/waterflow/leak/alert"
@@ -78,12 +78,21 @@ long previousTotalPublishMillis = 0;
 
 int flowInterval = 1000;      // 1 second for live flow
 int totalInterval = 5000;     // 5 seconds for total usage
-
 float calibrationFactor = 6.5;
 
 // -------------------- Valve & Leak Detection --------------------
 bool valveState = true;
 bool leakDetected = false;
+
+// Adaptive leak detection parameters
+float minThreshold = 0.6;        
+float leakPercent = 0.20;        
+float restoreThreshold = 0.4;    
+float minFlowForLeak = 1.0;      
+int leakConfirmSeconds = 4;      
+int restoreConfirmSeconds = 3;   
+int leakCounter = 0;
+int restoreCounter = 0;
 
 // -------------------- ISR --------------------
 void IRAM_ATTR pulseCounter() { 
@@ -114,12 +123,13 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
 
   // Handle outlet flow data from second ESP32
+
   if (String(topic) == TOPIC_OUTLET_FLOW) {
     flowRateOutlet = message.toFloat();
   }
 
   if (String(topic) == TOPIC_OUTLET_TOTAL) {
-    totalOutletML = message.toFloat() * 1000; // convert L to mL
+    totalOutletML = message.toFloat() * 1000;// convert L to mL
   }
 }
 
@@ -132,12 +142,12 @@ void reconnectMQTT() {
 
     if (client.connect(clientId.c_str(), mqtt_username, mqtt_password)) {
       Serial.println("✅ MQTT Connected");
-      // Subscribe to valve commands
+      // subscribe to valve commands
       client.subscribe(TOPIC_VALVE_COMMAND);
-      // Subscribe to outlet sensor data from second ESP32
+      //subscribe to outlet sensor data from second esp32
       client.subscribe(TOPIC_OUTLET_FLOW);
       client.subscribe(TOPIC_OUTLET_TOTAL);
-      // Publish initial valve status
+      //publish initial valve status
       client.publish(TOPIC_VALVE_STATUS, "Opened", true);
     } else {
       Serial.print("❌ Failed, rc=");
@@ -153,49 +163,79 @@ void setup() {
   Serial.begin(115200);
   pinMode(SENSOR, INPUT_PULLUP);
   pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, LOW); // Valve initially open
+  digitalWrite(RELAY_PIN, LOW);  //valve initially open
   pinMode(LED_BUILTIN, OUTPUT);
 
   attachInterrupt(digitalPinToInterrupt(SENSOR), pulseCounter, FALLING);
 
-  // --- Wi-Fi ---
+  // wifi
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("Connecting to Wi-Fi");
-
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
   }
-
   Serial.println("\n✅ Wi-Fi Connected");
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
 
-  // --- MQTT Setup ---
+//mqtt setup
   espClient.setCACert(root_ca);
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(mqttCallback);
   client.setKeepAlive(60);
   client.setSocketTimeout(30);
-
   Serial.println("✅ MQTT Configured");
+}
 
+// -------------------- Leak Detection Function --------------------
+void checkLeak() {
+  if (flowRateInlet < minFlowForLeak) {
+    leakCounter = 0;
+    restoreCounter = 0;
+    return;
+  }
+
+  float leakThreshold = max(minThreshold, leakPercent * flowRateInlet);
+  float diff = flowRateInlet - flowRateOutlet;
+
+  if (!leakDetected) {
+    if (diff > leakThreshold) {
+      leakCounter++;
+      if (leakCounter >= leakConfirmSeconds) {
+        leakDetected = true;
+        closeValve();
+        client.publish(TOPIC_LEAK_ALERT, "Leak Detected - Valve Closed", true);
+        client.publish(TOPIC_VALVE_STATUS, "Closed", true);
+        leakCounter = 0;
+      }
+    } else {
+      leakCounter = 0;
+    }
+  } else {
+    if (diff < restoreThreshold) {
+      restoreCounter++;
+      if (restoreCounter >= restoreConfirmSeconds) {
+        leakDetected = false;
+        openValve();
+        client.publish(TOPIC_LEAK_ALERT, "Normal", true);
+        client.publish(TOPIC_VALVE_STATUS, "Opened", true);
+        restoreCounter = 0;
+      }
+    } else {
+      restoreCounter = 0;
+    }
+  }
 }
 
 // -------------------- Loop --------------------
 void loop() {
-  // Maintain MQTT connection
-  if (!client.connected()) {
-    reconnectMQTT();
-  }
+  if (!client.connected()) reconnectMQTT();
   client.loop();
 
   long currentMillis = millis();
 
-
-  // --- Inlet Flow Calculation ---
-  // ---- FLOW RATE (1 SECOND) ----
+  // ---- Flow rate calculation ----
   if (currentMillis - previousMillis > flowInterval) {
-
     pulse1Sec = pulseCount;
     pulseCount = 0;
     previousMillis = currentMillis;
@@ -204,40 +244,25 @@ void loop() {
     flowMilliLitres = (flowRateInlet / 60.0) * 1000.0;
     totalMilliLitres += flowMilliLitres;
 
-    // Leak detection (unchanged)
-    float leakThreshold = 2.0; // Threshold to detect leak
-    float restoreThreshold = 0.5; // Threshold to restore flow
+    // Check for leaks
+    checkLeak();
 
-    if (!leakDetected && (flowRateInlet - flowRateOutlet) > leakThreshold) {
-      leakDetected = true;
-      closeValve();
-      client.publish(TOPIC_LEAK_ALERT, "Leak Detected - Valve Closed", true);
-      client.publish(TOPIC_VALVE_STATUS, "Closed", true);
-    } 
-    else if (leakDetected && (flowRateInlet - flowRateOutlet) < restoreThreshold) {
-      leakDetected = false;
-      openValve();
-      client.publish(TOPIC_LEAK_ALERT, "Normal", true);
-      client.publish(TOPIC_VALVE_STATUS, "Opened", true);
-    }
-
-    // Publish Flow Rate (1 decimal)
+    // Publish live flow
     char flowRateStr[10];
     dtostrf(flowRateInlet, 4, 1, flowRateStr);
     client.publish(TOPIC_INLET_FLOW, flowRateStr);
   }
 
-  // ---- TOTAL USAGE (EVERY 5 SECONDS) ----
+  // ---- Total usage (every 5s) ----
   if (currentMillis - previousTotalPublishMillis > totalInterval) {
     previousTotalPublishMillis = currentMillis;
 
     char totalLStr[10];
     float totalLiters = totalMilliLitres / 1000.0;
     dtostrf(totalLiters, 6, 1, totalLStr);
-
     client.publish(TOPIC_INLET_TOTAL, totalLStr);
 
-    // --- Serial monitor ---
+//serial monitor
     Serial.print("Inlet: "); 
     Serial.print(flowRateInlet, 2); 
     Serial.print(" L/min (");
@@ -254,16 +279,14 @@ void loop() {
 // -------------------- Valve Control --------------------
 void openValve() {
   valveState = true;
-  digitalWrite(RELAY_PIN, LOW); // Activate valve relay logic
+  digitalWrite(RELAY_PIN, LOW); //active valve relay logic
   digitalWrite(LED_BUILTIN, HIGH);
   Serial.println("✅ Valve Opened");
-
 }
 
 void closeValve() {
   valveState = false;
-  digitalWrite(RELAY_PIN, HIGH); // Deactivate valve relay logic
+  digitalWrite(RELAY_PIN, HIGH); // deactive valve relay logic
   digitalWrite(LED_BUILTIN, LOW);
   Serial.println("🚨 Valve Closed");
-
 }
