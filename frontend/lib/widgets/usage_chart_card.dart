@@ -26,9 +26,12 @@ class _UsageChartCardState extends State<UsageChartCard> {
     FlSpot(0, 20), FlSpot(1, 17), FlSpot(2, 7), FlSpot(3, 25), FlSpot(4, 10),
   ];
 
+  // Week 1, Week 2, Week 3, Week 4
   final List<FlSpot> _weeklyData = const [
-    FlSpot(0, 12), FlSpot(1, 18), FlSpot(2, 15), FlSpot(3, 22),
-    FlSpot(4, 9),  FlSpot(5, 14), FlSpot(6, 20),
+    FlSpot(0, 12), // Week 1
+    FlSpot(1, 18), // Week 2
+    FlSpot(2, 15), // Week 3
+    FlSpot(3, 22), // Week 4
   ];
 
   // ── Daily: last point uses real todayUsage (litres → m³) ──
@@ -43,8 +46,8 @@ class _UsageChartCardState extends State<UsageChartCard> {
   ];
 
   final List<String> _monthLabels = ['June', 'July', 'Aug', 'Sep', 'Oct'];
-  final List<String> _weekLabels  = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  final List<String> _dayLabels   = ['6am', '9am', '12pm', '3pm', '6pm', '9pm', 'Now'];
+  final List<String> _weekLabels  = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+  final List<String> _dayLabels   = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   List<FlSpot> get _currentData {
     switch (_selected) {
@@ -65,8 +68,8 @@ class _UsageChartCardState extends State<UsageChartCard> {
   String get _periodLabel {
     switch (_selected) {
       case ChartPeriod.monthly: return 'Last 5 Months';
-      case ChartPeriod.weekly:  return 'Last 7 Days';
-      case ChartPeriod.daily:   return 'Today';
+      case ChartPeriod.weekly:  return 'Last 4 Weeks';
+      case ChartPeriod.daily:   return 'This Week';
     }
   }
 
@@ -169,6 +172,7 @@ class _UsageChartCardState extends State<UsageChartCard> {
                           sideTitles: SideTitles(
                             showTitles: true,
                             reservedSize: 28,
+                            interval: 1, // ← exactly one label per data point, no duplicates!
                             getTitlesWidget: (value, meta) {
                               int index = value.toInt();
                               if (index >= 0 && index < _currentLabels.length) {
