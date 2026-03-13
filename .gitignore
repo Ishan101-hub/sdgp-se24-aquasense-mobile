@@ -1,50 +1,132 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
-.DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
+############################
+# Flutter / Dart
+############################
 
-# IntelliJ related
+# Flutter build files
+frontend/.dart_tool/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/.packages
+frontend/.metadata
+frontend/build/
+
+# Flutter cache
+frontend/.pub-cache/
+frontend/.pub/
+
+# Flutter coverage
+frontend/coverage/
+
+############################
+# Android (Flutter)
+############################
+
+frontend/android/.gradle/
+frontend/android/app/build/
+frontend/android/local.properties
+frontend/android/.idea/
+
+# Android debug builds
+frontend/android/app/debug
+frontend/android/app/profile
+frontend/android/app/release
+
+############################
+# iOS (Flutter)
+############################
+
+frontend/ios/Pods/
+frontend/ios/.symlinks/
+frontend/ios/Flutter/.last_build_id
+frontend/ios/Flutter/Flutter.framework
+frontend/ios/Flutter/Flutter.podspec
+frontend/ios/Flutter/Generated.xcconfig
+frontend/ios/Flutter/flutter_export_environment.sh
+
+############################
+# Python / FastAPI Backend
+############################
+
+# Python cache
+backend/__pycache__/
+backend/*.py[cod]
+
+# Python environments
+backend/venv/
+backend/.venv/
+backend/env/
+
+# Python environment variables
+backend/.env
+
+# Python build
+backend/build/
+backend/dist/
+
+# pytest
+backend/.pytest_cache/
+
+############################
+# ESP32 / PlatformIO IoT
+############################
+
+# PlatformIO build folder
+iot/.pio/
+
+# IoT build files
+iot/build/
+
+# Firmware binaries
+*.bin
+*.elf
+*.map
+*.hex
+
+############################
+# IDE / Editor Files
+############################
+
+# VS Code
+.vscode/
+
+# IntelliJ / Android Studio
+.idea/
 *.iml
 *.ipr
 *.iws
-.idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+############################
+# Logs
+############################
 
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/coverage/
+*.log
 
-# Symbolication related
-app.*.symbols
+############################
+# macOS
+############################
 
-# Obfuscation related
-app.*.map.json
+.DS_Store
 
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
+############################
+# Windows
+############################
 
-android/app/src/main/res/drawable-hdpi/
-android/app/src/main/res/drawable-mdpi/
-build/
-ios/Runner/Assets.xcassets/AppIcon.appiconset/
+Thumbs.db
+desktop.ini
+
+############################
+# Temporary Files
+############################
+
+*.swp
+*.tmp
+.history
+.svn/
+.atom/
+
+############################
+# Misc Build
+############################
+
+.build/
+.buildlog/
