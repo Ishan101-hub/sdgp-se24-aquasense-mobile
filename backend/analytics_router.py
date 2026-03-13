@@ -1,26 +1,22 @@
 # analytics_router.py
-# AquaSense v3 — Analytics Router
+# AquaSense v3.1 — Analytics Router
 #
-# All endpoints read from daily_summaries (pre-aggregated).
-# Raw readings are only touched for the live graph endpoint.
-#
-# Endpoints:
-#   GET /analytics/{device_id}/live              — last N raw readings (live chart)
-#   GET /analytics/{device_id}/usage/daily       — daily breakdown for one month
-#   GET /analytics/{device_id}/usage/monthly     — monthly rollup for one year
-#   GET /analytics/{device_id}/leaks             — leak event history
-#   GET /analytics/zone/{zone_id}/summary        — NEW: zone-level monthly aggregation
-#   GET /analytics/network/{network_id}/summary  — network-level monthly aggregation
-#
-# Ownership chain enforced on every endpoint:
-#   current_user → Network.owner_id → Zone.network_id → Device.zone_id
+# Changes from v3:
+#   • all_zones_summary — new GET /analytics/zones/summary endpoint
+#   • zone_summary      — adds zone_type and floor to response
+#   • network_summary   — adds zone_type and floor per zone group
+#   • _get_network_slug removed — network slug now passed directly via zones[0].network.network_id
+#     using a joined load instead of accessing a lazy relationship
+#   • zone_type filter supported on all_zones_summary (?zone_type=bathroom)
 
-from datetime import datetime, timedelta, timezone
+from calendar import monthrange
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, extract
+from sqlalchemy import select, func, extract, case
+from sqlalchemy.orm import joinedload
 
 from database import get_db
 from auth import get_current_user
@@ -33,23 +29,15 @@ _current_month = datetime.now(timezone.utc).month
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  Shared ownership helpers
+#  Ownership helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def _resolve_device(device_id: str, user: User, db: AsyncSession) -> Device:
-    """
-    Fetch device and verify ownership chain:
-      current_user → Network → Zone → Device
-    Raises 404 if device is not found or does not belong to the user.
-    """
     result = await db.execute(
         select(Device)
         .join(Zone,    Device.zone_id    == Zone.id)
         .join(Network, Zone.network_id   == Network.id)
-        .where(
-            Device.device_id   == device_id,
-            Network.owner_id   == user.id,
-        )
+        .where(Device.device_id == device_id, Network.owner_id == user.id)
     )
     device = result.scalar_one_or_none()
     if not device:
@@ -58,7 +46,6 @@ async def _resolve_device(device_id: str, user: User, db: AsyncSession) -> Devic
 
 
 async def _resolve_zone(zone_id: str, user: User, db: AsyncSession) -> Zone:
-    """Fetch zone and verify it belongs to one of the user's networks."""
     result = await db.execute(
         select(Zone)
         .join(Network, Zone.network_id == Network.id)
@@ -71,7 +58,6 @@ async def _resolve_zone(zone_id: str, user: User, db: AsyncSession) -> Zone:
 
 
 async def _resolve_network(network_id: int, user: User, db: AsyncSession) -> Network:
-    """Fetch network and verify ownership."""
     result = await db.execute(
         select(Network).where(Network.id == network_id, Network.owner_id == user.id)
     )
@@ -81,35 +67,37 @@ async def _resolve_network(network_id: int, user: User, db: AsyncSession) -> Net
     return net
 
 
+def _usage_status(total: float, avg: float) -> str:
+    if avg == 0:
+        return "no_data"
+    ratio = total / avg
+    if ratio > 1.2:
+        return "over_limit"
+    if ratio < 0.5:
+        return "low"
+    return "normal"
+
+
 # ─────────────────────────────────────────────────────────────────────────────
-#  1. LIVE GRAPH — last N raw readings
-#     Flutter home dashboard chart polling every 2s
+#  1. LIVE READINGS
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/{device_id}/live")
 async def live_readings(
-    device_id: str,
-    limit: int = Query(default=120, le=600),
+    device_id:    str,
+    limit:        int          = Query(default=120, le=600),
     db:           AsyncSession = Depends(get_db),
     current_user: User         = Depends(get_current_user),
 ):
-    """
-    Returns the most recent N outlet readings for a real-time chart.
-    Hits the ix_readings_outlet_partial index — only scans outlet rows.
-    """
     await _resolve_device(device_id, current_user, db)
 
     result = await db.execute(
         select(Reading)
-        .where(
-            Reading.device_id   == device_id,
-            Reading.sensor_type == "outlet",     # partial index hit
-        )
+        .where(Reading.device_id == device_id, Reading.sensor_type == "outlet")
         .order_by(Reading.timestamp.desc())
         .limit(limit)
     )
     readings = result.scalars().all()
-
     return {
         "device_id": device_id,
         "count":     len(readings),
@@ -120,29 +108,23 @@ async def live_readings(
                 "valve_status": r.valve_status,
                 "timestamp":    r.timestamp.isoformat(),
             }
-            for r in reversed(readings)   # oldest-first for charting
+            for r in reversed(readings)
         ],
     }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  2. DAILY BREAKDOWN — one month from daily_summaries
-#     Home screen chart + Report screen daily tab
+#  2. DAILY BREAKDOWN
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/{device_id}/usage/daily")
 async def daily_usage(
     device_id:    str,
-    year:         int = Query(default=_current_year),
-    month:        int = Query(default=_current_month, ge=1, le=12),
+    year:         int          = Query(default=_current_year),
+    month:        int          = Query(default=_current_month, ge=1, le=12),
     db:           AsyncSession = Depends(get_db),
     current_user: User         = Depends(get_current_user),
 ):
-    """
-    Daily water usage for one calendar month.
-    Reads from daily_summaries — never scans raw readings.
-    Filters sensor_type='outlet' to exclude inlet sensor rows.
-    """
     await _resolve_device(device_id, current_user, db)
 
     result = await db.execute(
@@ -156,12 +138,9 @@ async def daily_usage(
         .order_by(DailySummary.summary_date)
     )
     rows = result.scalars().all()
-
     return {
         "device_id": device_id,
-        "year":      year,
-        "month":     month,
-        "count":     len(rows),
+        "year": year, "month": month, "count": len(rows),
         "daily": [
             {
                 "date":                r.summary_date.isoformat(),
@@ -177,22 +156,16 @@ async def daily_usage(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  3. MONTHLY ROLLUP — full year from daily_summaries
-#     Report screen Monthly chart
+#  3. MONTHLY ROLLUP
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/{device_id}/usage/monthly")
 async def monthly_usage(
     device_id:    str,
-    year:         int = Query(default=_current_year),
+    year:         int          = Query(default=_current_year),
     db:           AsyncSession = Depends(get_db),
     current_user: User         = Depends(get_current_user),
 ):
-    """
-    12-month rollup for a device.
-    O(365) rows max from daily_summaries — no raw reading scan.
-    sensor_type='outlet' filter ensures only outlet data is included.
-    """
     await _resolve_device(device_id, current_user, db)
 
     result = await db.execute(
@@ -212,10 +185,8 @@ async def monthly_usage(
         .group_by("month")
         .order_by("month")
     )
-
     return {
-        "device_id": device_id,
-        "year":      year,
+        "device_id": device_id, "year": year,
         "monthly": [
             {
                 "month":               int(row.month),
@@ -231,25 +202,17 @@ async def monthly_usage(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  4. LEAK HISTORY — Event table, filtered to leak_detected
-#     Leakages screen + Alerts screen
+#  4. LEAK HISTORY
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/{device_id}/leaks")
 async def leak_history(
     device_id:    str,
     resolved:     Optional[bool] = Query(default=None),
-    limit:        int            = Query(default=50, le=200),
-    db:           AsyncSession   = Depends(get_db),
-    current_user: User           = Depends(get_current_user),
+    limit:        int             = Query(default=50, le=200),
+    db:           AsyncSession    = Depends(get_db),
+    current_user: User            = Depends(get_current_user),
 ):
-    """
-    Leak event history for a device.
-    resolved=None  → all leaks
-    resolved=false → open leaks (notification bell, Leakages screen badge)
-    resolved=true  → resolved leaks (history)
-    Uses ix_events_unresolved_leaks partial index for resolved=false queries.
-    """
     await _resolve_device(device_id, current_user, db)
 
     query = (
@@ -263,10 +226,8 @@ async def leak_history(
 
     result = await db.execute(query)
     events = result.scalars().all()
-
     return {
-        "device_id": device_id,
-        "count":     len(events),
+        "device_id": device_id, "count": len(events),
         "leaks": [
             {
                 "id":          e.id,
@@ -282,129 +243,233 @@ async def leak_history(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  5. ZONE SUMMARY — NEW
-#     Aggregates all outlet devices in a zone for a given month.
-#     Uses ix_daily_network_zone_date index.
+#  5. ALL ZONES SUMMARY  ← primary Flutter dashboard endpoint
+#
+#  GET /analytics/zones/summary?network_id=1&year=2026&month=3
+#  GET /analytics/zones/summary?network_id=1&zone_type=bathroom
+#
+#  Returns one entry per zone INSTANCE.
+#  bathroom_01 and bathroom_02 are always separate rows — never merged.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/zones/summary")
+async def all_zones_summary(
+    network_id:   int,
+    year:         int           = Query(default=_current_year),
+    month:        int           = Query(default=_current_month, ge=1, le=12),
+    zone_type:    Optional[str] = Query(default=None),
+    db:           AsyncSession  = Depends(get_db),
+    current_user: User          = Depends(get_current_user),
+):
+    """
+    Returns one usage card per zone instance for the Flutter dashboard.
+    Flutter iterates this list — no hardcoded zone names needed.
+
+    Fields per entry:
+      zone_id, zone_name, zone_type, floor   — identity
+      daily_usage_L, monthly_total_L,
+      daily_avg_L, status                    — usage
+      leak_events                            — alerts
+      valve_state                            — open|closed|mixed
+    """
+    network = await _resolve_network(network_id, current_user, db)
+
+    # ── Fetch zones, eagerly joining Network to get network_id slug ───────
+    zone_query = (
+        select(Zone)
+        .options(joinedload(Zone.network))
+        .where(Zone.network_id == network_id)
+    )
+    if zone_type:
+        zone_query = zone_query.where(Zone.zone_type == zone_type)
+    zone_query = zone_query.order_by(Zone.zone_type, Zone.zone_id)
+
+    zone_result = await db.execute(zone_query)
+    zones = zone_result.scalars().unique().all()
+
+    if not zones:
+        return []
+
+    zone_id_strings = [z.zone_id for z in zones]
+    network_slug    = network.network_id   # string slug from the loaded Network object
+
+    # ── Monthly totals per zone ───────────────────────────────────────────
+    monthly_result = await db.execute(
+        select(
+            DailySummary.zone_id,
+            func.sum(DailySummary.total_volume_litres).label("monthly_total"),
+            func.sum(DailySummary.leak_event_count).label("leak_events"),
+        )
+        .where(
+            DailySummary.network_id  == network_slug,
+            DailySummary.zone_id.in_(zone_id_strings),
+            DailySummary.sensor_type == "outlet",
+            extract("year",  DailySummary.summary_date) == year,
+            extract("month", DailySummary.summary_date) == month,
+        )
+        .group_by(DailySummary.zone_id)
+    )
+    monthly_by_zone = {
+        row.zone_id: {"monthly_total": float(row.monthly_total or 0),
+                      "leak_events":   int(row.leak_events    or 0)}
+        for row in monthly_result
+    }
+
+    # ── 30-day historical daily average per zone ──────────────────────────
+    avg_result = await db.execute(
+        select(
+            DailySummary.zone_id,
+            func.avg(DailySummary.total_volume_litres).label("daily_avg"),
+        )
+        .where(
+            DailySummary.zone_id.in_(zone_id_strings),
+            DailySummary.sensor_type == "outlet",
+        )
+        .group_by(DailySummary.zone_id)
+    )
+    avg_by_zone = {row.zone_id: float(row.daily_avg or 0) for row in avg_result}
+
+    # ── Current valve state per zone ──────────────────────────────────────
+    valve_result = await db.execute(
+        select(
+            Zone.zone_id,
+            func.count(Device.id).label("total"),
+            func.sum(case((Device.valve_state == "open", 1), else_=0)).label("open_count"),
+        )
+        .join(Device, Device.zone_id == Zone.id)
+        .where(
+            Zone.network_id    == network_id,
+            Zone.zone_id.in_(zone_id_strings),
+            Device.sensor_type == "outlet",
+            Device.status      == "active",
+        )
+        .group_by(Zone.zone_id)
+    )
+    valve_by_zone: dict[str, str] = {}
+    for row in valve_result:
+        if row.open_count == 0:
+            valve_by_zone[row.zone_id] = "closed"
+        elif row.open_count == row.total:
+            valve_by_zone[row.zone_id] = "open"
+        else:
+            valve_by_zone[row.zone_id] = "mixed"
+
+    # ── Build response ────────────────────────────────────────────────────
+    days_in_month = monthrange(year, month)[1]
+    today         = date.today()
+
+    response = []
+    for zone in zones:
+        zid          = zone.zone_id
+        m_data       = monthly_by_zone.get(zid, {"monthly_total": 0, "leak_events": 0})
+        monthly_total = m_data["monthly_total"]
+        daily_avg    = avg_by_zone.get(zid, 0)
+
+        days_elapsed = today.day if (today.year == year and today.month == month) else days_in_month
+        today_usage  = monthly_total / max(days_elapsed, 1)
+
+        response.append({
+            "zone_id":         zid,
+            "zone_name":       zone.zone_name,
+            "zone_type":       zone.zone_type,
+            "floor":           zone.floor,
+            "daily_usage_L":   round(today_usage,    2),
+            "monthly_total_L": round(monthly_total,  2),
+            "daily_avg_L":     round(daily_avg,       2),
+            "status":          _usage_status(today_usage, daily_avg),
+            "leak_events":     m_data["leak_events"],
+            "valve_state":     valve_by_zone.get(zid, "unknown"),
+        })
+
+    return response
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  6. SINGLE ZONE SUMMARY
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/zone/{zone_id}/summary")
 async def zone_summary(
     zone_id:      str,
-    year:         int = Query(default=_current_year),
-    month:        int = Query(default=_current_month, ge=1, le=12),
+    year:         int          = Query(default=_current_year),
+    month:        int          = Query(default=_current_month, ge=1, le=12),
     db:           AsyncSession = Depends(get_db),
     current_user: User         = Depends(get_current_user),
 ):
-    """
-    ZONE-LEVEL MONTHLY SUMMARY
-    Aggregates all outlet devices in the zone for the given year/month.
-
-    Response powers the Leakages screen zone card:
-      zone_total_volume_litres   — total water used in the zone this month
-      zone_total_leaks           — total leak events in the zone
-      devices[]                  — per-device breakdown
-
-    Ownership: current_user → Network → Zone verified.
-    Uses the ix_daily_network_zone_date composite index.
-    """
     zone = await _resolve_zone(zone_id, current_user, db)
 
-    # Get all devices in this zone
-    dev_result = await db.execute(
-        select(Device)
-        .where(Device.zone_id == zone.id, Device.status == "active")
-    )
-    devices = dev_result.scalars().all()
-    if not devices:
-        return {
-            "zone_id":                  zone_id,
-            "zone_name":                zone.zone_name,
-            "year":                     year,
-            "month":                    month,
-            "zone_total_volume_litres": 0.0,
-            "zone_total_leaks":         0,
-            "devices":                  [],
-        }
-
-    # Single aggregation query over daily_summaries for all zone devices
-    # Uses ix_daily_network_zone_date: network_id, zone_id, summary_date
     result = await db.execute(
+        select(
+            func.sum(DailySummary.total_volume_litres).label("total_volume"),
+            func.sum(DailySummary.leak_event_count).label("total_leaks"),
+            func.avg(DailySummary.avg_flow_rate).label("avg_flow"),
+        )
+        .where(
+            DailySummary.zone_id     == zone_id,
+            DailySummary.sensor_type == "outlet",
+            extract("year",  DailySummary.summary_date) == year,
+            extract("month", DailySummary.summary_date) == month,
+        )
+    )
+    row = result.one_or_none()
+
+    dev_result = await db.execute(
         select(
             DailySummary.device_id,
             func.sum(DailySummary.total_volume_litres).label("total_volume"),
             func.sum(DailySummary.leak_event_count).label("total_leaks"),
-            func.sum(DailySummary.reading_count).label("total_readings"),
-            func.avg(DailySummary.avg_flow_rate).label("avg_flow"),
         )
         .where(
-            DailySummary.zone_id     == zone_id,      # denormalised string slug
+            DailySummary.zone_id     == zone_id,
             DailySummary.sensor_type == "outlet",
             extract("year",  DailySummary.summary_date) == year,
             extract("month", DailySummary.summary_date) == month,
         )
         .group_by(DailySummary.device_id)
-        .order_by(DailySummary.device_id)
     )
-    rows = result.all()
+    dev_rows = dev_result.all()
 
-    # Build device name lookup from ORM objects
-    name_map = {d.device_id: d.subline_name for d in devices}
-
-    zone_total_volume = sum(float(r.total_volume or 0) for r in rows)
-    zone_total_leaks  = sum(int(r.total_leaks   or 0) for r in rows)
+    devices_result = await db.execute(
+        select(Device).where(Device.zone_id == zone.id, Device.status == "active")
+    )
+    name_map = {d.device_id: d.subline_name for d in devices_result.scalars()}
 
     return {
         "zone_id":                  zone_id,
         "zone_name":                zone.zone_name,
+        "zone_type":                zone.zone_type,
+        "floor":                    zone.floor,
         "year":                     year,
         "month":                    month,
-        "zone_total_volume_litres": round(zone_total_volume, 2),
-        "zone_total_leaks":         zone_total_leaks,
+        "zone_total_volume_litres": round(float(row.total_volume or 0), 2) if row else 0.0,
+        "zone_total_leaks":         int(row.total_leaks or 0)              if row else 0,
+        "avg_flow_rate":            round(float(row.avg_flow or 0), 4)     if row else 0.0,
         "devices": [
             {
                 "device_id":           r.device_id,
                 "subline_name":        name_map.get(r.device_id),
                 "total_volume_litres": round(float(r.total_volume or 0), 2),
-                "total_leaks":         int(r.total_leaks   or 0),
-                "total_readings":      int(r.total_readings or 0),
-                "avg_flow_rate":       round(float(r.avg_flow     or 0), 4),
+                "total_leaks":         int(r.total_leaks or 0),
             }
-            for r in rows
+            for r in dev_rows
         ],
     }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  6. NETWORK SUMMARY — aggregated per zone then per device
-#     Report screen — Monthly Water Usage top card
+#  7. NETWORK SUMMARY
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/network/{network_id}/summary")
 async def network_summary(
     network_id:   int,
-    year:         int = Query(default=_current_year),
-    month:        int = Query(default=_current_month, ge=1, le=12),
+    year:         int          = Query(default=_current_year),
+    month:        int          = Query(default=_current_month, ge=1, le=12),
     db:           AsyncSession = Depends(get_db),
     current_user: User         = Depends(get_current_user),
 ):
-    """
-    NETWORK-LEVEL MONTHLY SUMMARY
-    Groups devices by zone, then aggregates each zone's daily_summaries.
-
-    Response shape:
-      network_total_volume_litres
-      zones[]:
-        zone_id
-        zone_name
-        zone_total_volume_litres
-        devices[]: { device_id, subline_name, total_volume_litres, total_leaks }
-
-    Ownership: current_user → Network verified.
-    All analytics from daily_summaries — no raw reading scan.
-    """
     network = await _resolve_network(network_id, current_user, db)
 
-    # One query: daily_summaries → devices → zones, grouped by zone + device
     result = await db.execute(
         select(
             DailySummary.zone_id.label("z_id"),
@@ -413,8 +478,8 @@ async def network_summary(
             func.sum(DailySummary.leak_event_count).label("total_leaks"),
             func.sum(DailySummary.reading_count).label("total_readings"),
         )
-        .join(Device,  DailySummary.device_id == Device.device_id)
-        .join(Zone,    Device.zone_id          == Zone.id)
+        .join(Device, DailySummary.device_id == Device.device_id)
+        .join(Zone,   Device.zone_id          == Zone.id)
         .where(
             Zone.network_id              == network_id,
             DailySummary.sensor_type     == "outlet",
@@ -426,28 +491,26 @@ async def network_summary(
     )
     rows = result.all()
 
-    # Fetch zone name lookup
-    zone_result = await db.execute(
-        select(Zone).where(Zone.network_id == network_id)
-    )
-    zone_map = {z.zone_id: z.zone_name for z in zone_result.scalars()}
+    zone_result = await db.execute(select(Zone).where(Zone.network_id == network_id))
+    zone_map = {z.zone_id: z for z in zone_result.scalars()}
 
-    # Fetch device subline_name lookup
     dev_result = await db.execute(
         select(Device)
-        .join(Zone,    Device.zone_id    == Zone.id)
+        .join(Zone, Device.zone_id == Zone.id)
         .where(Zone.network_id == network_id)
     )
     dev_map = {d.device_id: d.subline_name for d in dev_result.scalars()}
 
-    # Group rows by zone
     zones_dict: dict[str, dict] = {}
     for row in rows:
         zid = row.z_id
         if zid not in zones_dict:
+            z = zone_map.get(zid)
             zones_dict[zid] = {
                 "zone_id":                  zid,
-                "zone_name":                zone_map.get(zid),
+                "zone_name":                z.zone_name  if z else zid,
+                "zone_type":                z.zone_type  if z else "unknown",   # ← NEW
+                "floor":                    z.floor      if z else None,         # ← NEW
                 "zone_total_volume_litres": 0.0,
                 "zone_total_leaks":         0,
                 "devices":                  [],
@@ -467,21 +530,18 @@ async def network_summary(
     for z in zones_list:
         z["zone_total_volume_litres"] = round(z["zone_total_volume_litres"], 2)
 
-    network_total = sum(z["zone_total_volume_litres"] for z in zones_list)
-
     return {
-        "network_id":                   network_id,
-        "network_name":                 network.name,
-        "year":                         year,
-        "month":                        month,
-        "network_total_volume_litres":  round(network_total, 2),
-        "zones":                        zones_list,
+        "network_id":                  network_id,
+        "network_name":                network.name,
+        "year":                        year,
+        "month":                       month,
+        "network_total_volume_litres": round(sum(z["zone_total_volume_litres"] for z in zones_list), 2),
+        "zones":                       zones_list,
     }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  7. ZONE LEAK HISTORY — leak events across all devices in a zone
-#     Leakage screen zone-level alerts
+#  8. ZONE LEAK HISTORY  (kept from v3 — unchanged)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/zone/{zone_id}/leaks")
@@ -492,15 +552,6 @@ async def zone_leak_history(
     db:           AsyncSession   = Depends(get_db),
     current_user: User           = Depends(get_current_user),
 ):
-    """
-    Leak and flow_mismatch event history for all devices in a zone.
-    Ownership: current_user → Network → Zone verified.
-
-    resolved=None  → all events
-    resolved=false → open (unresolved) events only
-    resolved=true  → resolved events only
-    """
-    # Ownership check
     zone_result = await db.execute(
         select(Zone)
         .join(Network, Zone.network_id == Network.id)
@@ -510,12 +561,10 @@ async def zone_leak_history(
     if not zone:
         raise HTTPException(status_code=404, detail="Zone not found")
 
-    # Get all device IDs in this zone
     dev_result = await db.execute(
         select(Device.device_id).where(Device.zone_id == zone_id)
     )
     device_ids = [row[0] for row in dev_result.all()]
-
     if not device_ids:
         return {"zone_id": zone_id, "zone": zone.zone_name, "count": 0, "leaks": []}
 
@@ -533,11 +582,8 @@ async def zone_leak_history(
 
     result = await db.execute(query)
     events = result.scalars().all()
-
     return {
-        "zone_id": zone_id,
-        "zone":    zone.zone_name,
-        "count":   len(events),
+        "zone_id": zone_id, "zone": zone.zone_name, "count": len(events),
         "leaks": [
             {
                 "id":          e.id,
@@ -555,28 +601,17 @@ async def zone_leak_history(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  8. DASHBOARD TODAY — today's water usage stats
-#     Flutter dashboard TodayCard: litresUsed, dailyAverage, percent
+#  9. DASHBOARD TODAY  (kept from v3 — unchanged)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/dashboard/today")
 async def dashboard_today(
-    network_id:   Optional[int] = Query(default=None, description="Filter to a specific network"),
+    network_id:   Optional[int] = Query(default=None),
     db:           AsyncSession  = Depends(get_db),
     current_user: User          = Depends(get_current_user),
 ):
-    """
-    Today's water usage across all the user's devices (or a single network).
-
-    Returns:
-      litresUsed    — total volume consumed today (from raw readings)
-      dailyAverage  — 30-day rolling average from daily_summaries
-      percent       — litresUsed / dailyAverage * 100 (capped at 200 for display)
-      active_leaks  — count of unresolved leak/flow_mismatch events today
-    """
     today = datetime.now(timezone.utc).date()
 
-    # Resolve the user's network IDs (or a single one)
     if network_id is not None:
         net_result = await db.execute(
             select(Network).where(Network.id == network_id, Network.owner_id == current_user.id)
@@ -593,7 +628,6 @@ async def dashboard_today(
     if not network_ids:
         return {"litresUsed": 0.0, "dailyAverage": 0.0, "percent": 0.0, "active_leaks": 0}
 
-    # Collect all outlet device IDs belonging to these networks
     dev_result = await db.execute(
         select(Device.device_id)
         .where(
@@ -607,19 +641,6 @@ async def dashboard_today(
     if not device_ids:
         return {"litresUsed": 0.0, "dailyAverage": 0.0, "percent": 0.0, "active_leaks": 0}
 
-    # ── Today's volume: max(total_volume) - min(total_volume) per device ──────
-    # Mirrors the aggregation logic in aggregation.py
-    today_result = await db.execute(
-        select(
-            func.sum(func.coalesce(Reading.total_volume, 0)).label("vol_sum"),
-        )
-        .where(
-            Reading.device_id.in_(device_ids),
-            Reading.sensor_type == "outlet",
-            func.date(Reading.timestamp) == today,
-        )
-    )
-    # Use max-min odometer approach per device for accuracy
     today_vol_result = await db.execute(
         select(
             Reading.device_id,
@@ -638,7 +659,6 @@ async def dashboard_today(
         for r in today_vol_result.all()
     )
 
-    # ── 30-day average from daily_summaries ───────────────────────────────────
     thirty_days_ago = today - timedelta(days=30)
     avg_result = await db.execute(
         select(func.avg(DailySummary.total_volume_litres).label("daily_avg"))
@@ -650,12 +670,10 @@ async def dashboard_today(
             DailySummary.reading_count > 0,
         )
     )
-    daily_avg = float(avg_result.scalar() or 0.0)
+    daily_avg   = float(avg_result.scalar() or 0.0)
+    percent     = round((litres_used / daily_avg * 100) if daily_avg > 0 else 0.0, 1)
+    percent     = min(percent, 200.0)
 
-    percent = round((litres_used / daily_avg * 100) if daily_avg > 0 else 0.0, 1)
-    percent = min(percent, 200.0)   # cap for display safety
-
-    # ── Active (unresolved) leaks today ───────────────────────────────────────
     leak_count_result = await db.execute(
         select(func.count()).where(
             Event.device_id.in_(device_ids),
