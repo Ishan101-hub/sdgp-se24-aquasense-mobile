@@ -255,7 +255,7 @@ class _HomeScreenState extends State<HomeScreen>
     return Container(
       width: double.infinity,
       color: const Color(0xFF0B1B66),
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+      padding: const EdgeInsets.fromLTRB(18, 0, 18, 0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -265,7 +265,7 @@ class _HomeScreenState extends State<HomeScreen>
               scale: 1.8,
               child: Image.asset(
                 'assets/icons/headerLogo.png',
-                height: 120,
+                height: 80,
                 fit: BoxFit.contain,
               ),
             ),

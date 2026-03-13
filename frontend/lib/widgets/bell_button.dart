@@ -94,21 +94,6 @@ class _BellButtonState extends State<BellButton> {
           ),
         ),
 
-        // ── Red dot: only shows when there are UNREAD notifications ──
-        if (_hasUnread)
-          Positioned(
-            top: -4,
-            right: -4,
-            child: Container(
-              width: 16,
-              height: 16,
-              decoration: const BoxDecoration(
-                color: Colors.red,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-
       ],
     );
   }
