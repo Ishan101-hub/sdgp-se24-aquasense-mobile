@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
-// ── Zone model ──────────────────────────────────────────────
+// ── Zone model ───────────────────────────────────────────────
+// name    = zone_name from backend  e.g. "Bathroom 01"
+// used    = today's usage in litres e.g. 60.0
+// average = 30-day average          e.g. 100.0
 class WaterZone {
   final String name;
   final double used;
@@ -54,7 +57,17 @@ class DailyConsumptionCard extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          // ── ZONE CIRCLES (only if zones exist) ──
+          // ── DYNAMIC ZONE CIRCLES ──────────────────────────
+          // Renders however many zones backend returns
+          //
+          // 1 zone  → ◔             (1 row of 1)
+          // 2 zones → ◔ ◔           (1 row of 2)
+          // 3 zones → ◔ ◔ ◔         (1 row of 3)
+          // 4 zones → ◔ ◔ ◔         (row 1)
+          //           ◔              (row 2)
+          // 5 zones → ◔ ◔ ◔         (row 1)
+          //           ◔ ◔            (row 2)
+          // Works for any number! ✅
           if (zones.isNotEmpty)
             ...List.generate(
               (zones.length / 3).ceil(),
@@ -75,8 +88,7 @@ class DailyConsumptionCard extends StatelessWidget {
               },
             ),
 
-          // ── ADD A DEVICE CARD (ALWAYS shows at bottom) ──
-          // User can always tap this to add a new ESP32 device
+          // ── ADD A DEVICE CARD (always at bottom) ──
           _AddDeviceCard(),
 
         ],
@@ -86,97 +98,10 @@ class DailyConsumptionCard extends StatelessWidget {
 }
 
 
-// ── ADD A DEVICE CARD ─────────────────────────────────────────
-// Always visible at the bottom of Daily Consumption card
-// When tapped → will connect to backend to register new device
-class _AddDeviceCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        // ── TODO: When backend ready ──
-        // Navigate to device setup page or
-        // call FastAPI to register new ESP32 device
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Device setup coming soon!'),
-            backgroundColor: Color(0xFF1A1A6E),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFEEF4FF),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: const Color(0xFF1A1A6E).withValues(alpha: 0.2),
-            width: 1.5,
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-
-            // ── "+" icon ──
-            Container(
-              width: 36,
-              height: 36,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Color(0xFF1A1A6E),
-              ),
-              child: const Icon(
-                Icons.add,
-                color: Colors.white,
-                size: 22,
-              ),
-            ),
-
-            const SizedBox(width: 12),
-
-            // ── Text ──
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Add a Device',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1A1A6E),
-                  ),
-                ),
-                Text(
-                  'Tap to connect a new ESP32 sensor',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF888888),
-                  ),
-                ),
-              ],
-            ),
-
-            const Spacer(),
-
-            // ── Arrow icon ──
-            const Icon(
-              Icons.arrow_forward_ios,
-              color: Color(0xFF1A1A6E),
-              size: 16,
-            ),
-
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-
 // ── ZONE CIRCLE ──────────────────────────────────────────────
+// Shows circular arc + litres used + zone name
+// Navy  = normal (used < average)
+// RED   = over limit (used >= average)
 class _ZoneCircle extends StatelessWidget {
   final WaterZone zone;
 
@@ -191,13 +116,12 @@ class _ZoneCircle extends StatelessWidget {
     final Color arcColor   = isOverLimit
         ? const Color(0xFFD80B0B)
         : const Color(0xFF1A1A6E);
-    final Color textColor  = isOverLimit
-        ? const Color(0xFFD80B0B)
-        : const Color(0xFF1A1A6E);
+    final Color textColor  = arcColor;
 
     return Column(
       children: [
 
+        // ── Arc circle ──
         SizedBox(
           width: 95,
           height: 95,
@@ -205,6 +129,7 @@ class _ZoneCircle extends StatelessWidget {
             alignment: Alignment.center,
             children: [
 
+              // Grey background arc
               CustomPaint(
                 size: const Size(95, 95),
                 painter: _ArcPainter(
@@ -214,6 +139,7 @@ class _ZoneCircle extends StatelessWidget {
                 ),
               ),
 
+              // Colored progress arc
               CustomPaint(
                 size: const Size(95, 95),
                 painter: _ArcPainter(
@@ -223,6 +149,7 @@ class _ZoneCircle extends StatelessWidget {
                 ),
               ),
 
+              // Litres + label inside circle
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -252,15 +179,19 @@ class _ZoneCircle extends StatelessWidget {
 
         const SizedBox(height: 8),
 
+        // ── Zone name from API ──
+        // e.g. "Bathroom 01", "Bathroom 02", "Kitchen 01" ✅
         Text(
           zone.name,
+          textAlign: TextAlign.center,
           style: const TextStyle(
-            fontSize: 13,
+            fontSize: 12,
             fontWeight: FontWeight.bold,
             color: Color(0xFF1A1A6E),
           ),
         ),
 
+        // Over limit warning
         if (isOverLimit)
           const Text(
             'Over limit!',
@@ -277,10 +208,75 @@ class _ZoneCircle extends StatelessWidget {
 }
 
 
+// ── ADD A DEVICE CARD ──────────────────────────────────────
+class _AddDeviceCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Device setup coming soon!'),
+            backgroundColor: Color(0xFF1A1A6E),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEEF4FF),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFF1A1A6E).withValues(alpha: 0.2),
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xFF1A1A6E),
+              ),
+              child: const Icon(Icons.add, color: Colors.white, size: 22),
+            ),
+            const SizedBox(width: 12),
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Add a Device',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1A1A6E),
+                  ),
+                ),
+                Text(
+                  'Tap to connect a new ESP32 sensor',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF888888)),
+                ),
+              ],
+            ),
+            const Spacer(),
+            const Icon(Icons.arrow_forward_ios, color: Color(0xFF1A1A6E), size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
 // ── ARC PAINTER ──────────────────────────────────────────────
 class _ArcPainter extends CustomPainter {
   final double progress;
-  final Color color;
+  final Color  color;
   final double strokeWidth;
 
   _ArcPainter({
@@ -291,31 +287,26 @@ class _ArcPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()
-      ..color = color
+    final paint = Paint()
+      ..color       = color
       ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+      ..style       = PaintingStyle.stroke
+      ..strokeCap   = StrokeCap.round;
 
-    final double centerX = size.width / 2;
-    final double centerY = size.height / 2;
-    final double radius  = (size.width - strokeWidth) / 2;
-
-    const double startAngle = 140 * math.pi / 180;
-    final double sweepAngle = 260 * math.pi / 180 * progress;
+    final cx     = size.width / 2;
+    final cy     = size.height / 2;
+    final radius = (size.width - strokeWidth) / 2;
 
     canvas.drawArc(
-      Rect.fromCircle(center: Offset(centerX, centerY), radius: radius),
-      startAngle,
-      sweepAngle,
+      Rect.fromCircle(center: Offset(cx, cy), radius: radius),
+      140 * math.pi / 180,
+      260 * math.pi / 180 * progress,
       false,
       paint,
     );
   }
 
   @override
-  bool shouldRepaint(_ArcPainter oldDelegate) {
-    return oldDelegate.progress != progress ||
-           oldDelegate.color != color;
-  }
+  bool shouldRepaint(_ArcPainter old) =>
+      old.progress != progress || old.color != color;
 }
