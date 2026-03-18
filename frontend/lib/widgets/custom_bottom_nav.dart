@@ -20,12 +20,14 @@ class CustomBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Padding(
       padding: const EdgeInsets.all(12),
       child: Container(
         height: 64,
         decoration: BoxDecoration(
-          color: const Color(0xFFDFF4F9),
+          color: isDark ? const Color(0xFF1A1A2E) : const Color(0xFFDFF4F9),
           borderRadius: BorderRadius.circular(40),
         ),
         child: Row(
@@ -46,6 +48,16 @@ class CustomBottomNav extends StatelessWidget {
                       ? const Color(0xFF0A1B6F)
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(30),
+                  boxShadow: isActive
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFF0A1B6F).withOpacity(0.55),
+                            blurRadius: 16,
+                            spreadRadius: 1,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : [],
                 ),
                 child: Row(
                   children: [
@@ -53,7 +65,9 @@ class CustomBottomNav extends StatelessWidget {
                       items[index].icon,
                       color: isActive
                           ? Colors.white
-                          : const Color(0xFF0A1B6F),
+                          : isDark
+                              ? Colors.white60
+                              : const Color(0xFF0A1B6F),
                     ),
                     if (isActive) ...[
                       const SizedBox(width: 8),
