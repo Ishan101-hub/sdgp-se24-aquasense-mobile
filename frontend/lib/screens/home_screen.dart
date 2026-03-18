@@ -24,19 +24,69 @@ class _HomeScreenState extends State<HomeScreen>
   late Animation<Offset> _slideAnim;
 
   final List<String> _sriLankaDistricts = [
-    'Ampara','Anuradhapura','Badulla','Batticaloa','Colombo',
-    'Galle','Gampaha','Hambantota','Jaffna','Kalutara',
-    'Kandy','Kegalle','Kilinochchi','Kurunegala','Mannar',
-    'Matale','Matara','Monaragala','Mullaitivu','Nuwara Eliya',
-    'Polonnaruwa','Puttalam','Ratnapura','Trincomalee','Vavuniya',
+    'Ampara',
+    'Anuradhapura',
+    'Badulla',
+    'Batticaloa',
+    'Colombo',
+    'Galle',
+    'Gampaha',
+    'Hambantota',
+    'Jaffna',
+    'Kalutara',
+    'Kandy',
+    'Kegalle',
+    'Kilinochchi',
+    'Kurunegala',
+    'Mannar',
+    'Matale',
+    'Matara',
+    'Monaragala',
+    'Mullaitivu',
+    'Nuwara Eliya',
+    'Polonnaruwa',
+    'Puttalam',
+    'Ratnapura',
+    'Trincomalee',
+    'Vavuniya',
   ];
 
   final List<_NotifItem> _notifications = [
-    _NotifItem(type: _NotifType.leak,title:'Leak Detected – Kitchen',body:'IN: 23.1 gal/min vs OUT: 15.7 gal/min. Check immediately.',time:'2 min ago',isRead:false),
-    _NotifItem(type: _NotifType.alert,title:'High Usage Alert',body:'Daily usage exceeded average by 40%.',time:'18 min ago',isRead:false),
-    _NotifItem(type: _NotifType.valve,title:'Valve Closed – Bathroom',body:'Bathroom line auto-closed after leak alert.',time:'1 hr ago',isRead:false),
-    _NotifItem(type: _NotifType.report,title:'Monthly Report Ready',body:'January 2025 report: 15,250 Litres total.',time:'3 hrs ago',isRead:true),
-    _NotifItem(type: _NotifType.system,title:'System Reconnected',body:'All IoT sensors are back online.',time:'Yesterday',isRead:true),
+    _NotifItem(
+      type: _NotifType.leak,
+      title: 'Leak Detected – Kitchen',
+      body: 'IN: 23.1 gal/min vs OUT: 15.7 gal/min. Check immediately.',
+      time: '2 min ago',
+      isRead: false,
+    ),
+    _NotifItem(
+      type: _NotifType.alert,
+      title: 'High Usage Alert',
+      body: 'Daily usage exceeded average by 40%.',
+      time: '18 min ago',
+      isRead: false,
+    ),
+    _NotifItem(
+      type: _NotifType.valve,
+      title: 'Valve Closed – Bathroom',
+      body: 'Bathroom line auto-closed after leak alert.',
+      time: '1 hr ago',
+      isRead: false,
+    ),
+    _NotifItem(
+      type: _NotifType.report,
+      title: 'Monthly Report Ready',
+      body: 'January 2025 report: 15,250 Litres total.',
+      time: '3 hrs ago',
+      isRead: true,
+    ),
+    _NotifItem(
+      type: _NotifType.system,
+      title: 'System Reconnected',
+      body: 'All IoT sensors are back online.',
+      time: 'Yesterday',
+      isRead: true,
+    ),
   ];
 
   int get _unreadCount => _notifications.where((n) => !n.isRead).length;
@@ -48,10 +98,15 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(vsync: this,duration: const Duration(milliseconds: 220));
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+    );
     _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
-    _slideAnim = Tween<Offset>(begin: const Offset(0, -0.08), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, -0.08),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
   }
 
   @override
@@ -96,20 +151,30 @@ class _HomeScreenState extends State<HomeScreen>
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2)),
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Row(children: [
-                const Icon(Icons.location_on, color: Color(0xFF0B1B66), size: 20),
-                const SizedBox(width: 8),
-                Text('Select District',
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.location_on,
+                    color: Color(0xFF0B1B66),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Select District',
                     style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : const Color(0xFF0B1B66))),
-              ]),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : const Color(0xFF0B1B66),
+                    ),
+                  ),
+                ],
+              ),
             ),
             const Divider(height: 0, thickness: 0.5),
             Expanded(
@@ -127,23 +192,41 @@ class _HomeScreenState extends State<HomeScreen>
                       color: isSelected
                           ? const Color(0xFF0B1B66).withOpacity(0.07)
                           : null,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                      child: Row(children: [
-                        Icon(Icons.location_city,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 14,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.location_city,
                             size: 18,
-                            color: isSelected ? const Color(0xFF0B1B66) : Colors.grey),
-                        const SizedBox(width: 12),
-                        Text(d,
+                            color: isSelected
+                                ? const Color(0xFF0B1B66)
+                                : Colors.grey,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            d,
                             style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                color: isSelected
-                                    ? const Color(0xFF0B1B66)
-                                    : (isDark ? Colors.white : Colors.black87))),
-                        const Spacer(),
-                        if (isSelected)
-                          const Icon(Icons.check, color: Color(0xFF0B1B66), size: 18),
-                      ]),
+                              fontSize: 15,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: isSelected
+                                  ? const Color(0xFF0B1B66)
+                                  : (isDark ? Colors.white : Colors.black87),
+                            ),
+                          ),
+                          const Spacer(),
+                          if (isSelected)
+                            const Icon(
+                              Icons.check,
+                              color: Color(0xFF0B1B66),
+                              size: 18,
+                            ),
+                        ],
+                      ),
                     ),
                   );
                 },
@@ -168,7 +251,9 @@ class _HomeScreenState extends State<HomeScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFEEF4FF),
+      backgroundColor: isDark
+          ? const Color(0xFF121212)
+          : const Color(0xFFEEF4FF),
       body: Stack(
         children: [
           SafeArea(
@@ -193,8 +278,9 @@ class _HomeScreenState extends State<HomeScreen>
               child: FadeTransition(
                 opacity: _fadeAnim,
                 child: SlideTransition(
-                    position: _slideAnim,
-                    child: _buildNotifPanel()),
+                  position: _slideAnim,
+                  child: _buildNotifPanel(),
+                ),
               ),
             ),
         ],
@@ -208,7 +294,9 @@ class _HomeScreenState extends State<HomeScreen>
                 ? const Color(0xFF1A3499)
                 : const Color(0xFF0B1B66),
             elevation: 8,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             child: Icon(
               _showNotifPanel
                   ? Icons.notifications_active
@@ -232,9 +320,10 @@ class _HomeScreenState extends State<HomeScreen>
                   child: Text(
                     '$_unreadCount',
                     style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold),
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
@@ -296,8 +385,11 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                   ),
                   const SizedBox(width: 3),
-                  const Icon(Icons.keyboard_arrow_down,
-                      color: Colors.white, size: 16),
+                  const Icon(
+                    Icons.keyboard_arrow_down,
+                    color: Colors.white,
+                    size: 16,
+                  ),
                 ],
               ),
             ),
@@ -316,8 +408,9 @@ class _HomeScreenState extends State<HomeScreen>
       shadowColor: Colors.black38,
       child: Container(
         decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-            borderRadius: BorderRadius.circular(22)),
+          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          borderRadius: BorderRadius.circular(22),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -329,25 +422,49 @@ class _HomeScreenState extends State<HomeScreen>
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.notifications,color: Colors.white,size: 20),
+                  const Icon(
+                    Icons.notifications,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
-                  const Text('Notifications',
-                      style: TextStyle(color: Colors.white,fontWeight: FontWeight.bold,fontSize: 15)),
+                  const Text(
+                    'Notifications',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
                   if (unread > 0) ...[
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                      decoration: BoxDecoration(color: Colors.red,borderRadius: BorderRadius.circular(10)),
-                      child: Text('$unread',
-                          style: const TextStyle(color: Colors.white,fontSize: 11,fontWeight: FontWeight.bold)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '$unread',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ],
                   const Spacer(),
                   if (unread > 0)
                     GestureDetector(
                       onTap: _markAllRead,
-                      child: const Text('Mark all read',
-                          style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      child: const Text(
+                        'Mark all read',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
                     ),
                 ],
               ),
@@ -361,23 +478,37 @@ class _HomeScreenState extends State<HomeScreen>
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       itemCount: _notifications.length,
                       separatorBuilder: (_, __) => const Divider(
-                          height: 0, thickness: 0.4, indent: 16, endIndent: 16),
+                        height: 0,
+                        thickness: 0.4,
+                        indent: 16,
+                        endIndent: 16,
+                      ),
                       itemBuilder: (_, i) => _buildNotifTile(_notifications[i]),
                     ),
             ),
             InkWell(
               onTap: _closePanel,
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(22)),
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(22),
+              ),
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF2A2A2A) : Colors.grey[50],
-                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(22)),
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(22),
+                  ),
                 ),
-                child: const Text('Close',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Color(0xFF0B1B66),fontWeight: FontWeight.w600,fontSize: 13)),
+                child: const Text(
+                  'Close',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF0B1B66),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
               ),
             ),
           ],
@@ -392,7 +523,12 @@ class _HomeScreenState extends State<HomeScreen>
     return InkWell(
       onTap: () => setState(() => item.isRead = true),
       child: Container(
-        color: item.isRead ? Colors.transparent : const Color(0xFFF0F3FF),
+        // FIX 1: unread tile background adapts to dark mode
+        color: item.isRead
+            ? Colors.transparent
+            : isDark
+            ? Colors.white.withOpacity(0.05)
+            : const Color(0xFFF0F3FF),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -401,8 +537,9 @@ class _HomeScreenState extends State<HomeScreen>
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                  color: meta.color.withOpacity(0.12),
-                  shape: BoxShape.circle),
+                color: meta.color.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
               child: Icon(meta.icon, color: meta.color, size: 19),
             ),
             const SizedBox(width: 10),
@@ -413,47 +550,71 @@ class _HomeScreenState extends State<HomeScreen>
                   Row(
                     children: [
                       Expanded(
-                        child: Text(item.title,
-                            style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: item.isRead ? FontWeight.w500 : FontWeight.bold,
-                                color: isDark ? Colors.white : const Color(0xFF0A1B6F))),
+                        child: Text(
+                          item.title,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: item.isRead
+                                ? FontWeight.w500
+                                : FontWeight.bold,
+                            color: isDark
+                                ? Colors.white
+                                : const Color(0xFF0A1B6F),
+                          ),
+                        ),
                       ),
                       if (!item.isRead)
                         Container(
                           width: 7,
                           height: 7,
                           decoration: const BoxDecoration(
-                              color: Colors.red, shape: BoxShape.circle),
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
                         ),
                     ],
                   ),
                   const SizedBox(height: 2),
-                  Text(item.body,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 11.5,
-                          color: Colors.grey[600],
-                          height: 1.4)),
+                  Text(
+                    item.body,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    // FIX 2: body text color adapts to dark mode
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      height: 1.4,
+                    ),
+                  ),
                   const SizedBox(height: 3),
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: meta.color.withOpacity(0.10),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Text(meta.label,
-                            style: TextStyle(
-                                fontSize: 10,
-                                color: meta.color,
-                                fontWeight: FontWeight.w600)),
+                        child: Text(
+                          meta.label,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: meta.color,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 6),
-                      Text(item.time,
-                          style: const TextStyle(fontSize: 10.5, color: Colors.grey)),
+                      Text(
+                        item.time,
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          color: Colors.grey,
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -471,10 +632,16 @@ class _HomeScreenState extends State<HomeScreen>
       child: Center(
         child: Column(
           children: [
-            Icon(Icons.notifications_off_outlined,size: 40,color: Colors.grey),
+            Icon(
+              Icons.notifications_off_outlined,
+              size: 40,
+              color: Colors.grey,
+            ),
             SizedBox(height: 8),
-            Text('No notifications',
-                style: TextStyle(color: Colors.grey, fontSize: 13)),
+            Text(
+              'No notifications',
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+            ),
           ],
         ),
       ),
@@ -488,7 +655,11 @@ class _HomeScreenState extends State<HomeScreen>
       case _NotifType.alert:
         return _NotifMeta(Icons.warning_amber_outlined, Colors.orange, 'Alert');
       case _NotifType.valve:
-        return _NotifMeta(Icons.settings_input_component_outlined,const Color(0xFF0A1B6F),'Valve');
+        return _NotifMeta(
+          Icons.settings_input_component_outlined,
+          const Color(0xFF0A1B6F),
+          'Valve',
+        );
       case _NotifType.report:
         return _NotifMeta(Icons.bar_chart_outlined, Colors.green, 'Report');
       case _NotifType.system:

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-// Importing the detail screens
 import 'iot_connectivity_screen.dart';
 import 'installation_guide_screen.dart';
 import 'nwsdb_coordination_screen.dart';
@@ -10,11 +9,12 @@ class SupportScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Brand Color as per your project report
     const Color brandBlue = Color(0xFF0A1B6F);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFF),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text(
           "Customer Support",
@@ -28,13 +28,13 @@ class SupportScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Section
+            // Header Section — always stays brandBlue, no change needed
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(25),
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: brandBlue,
-                borderRadius: const BorderRadius.only(
+                borderRadius: BorderRadius.only(
                   bottomLeft: Radius.circular(30),
                   bottomRight: Radius.circular(30),
                 ),
@@ -64,14 +64,13 @@ class SupportScreen extends StatelessWidget {
               ),
             ),
 
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 30, 20, 10),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 30, 20, 10),
               child: Text(
                 "Quick Contact",
-                style: TextStyle(
-                  fontSize: 18,
+                style: textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: brandBlue,
+                  color: isDark ? Colors.white : brandBlue,
                 ),
               ),
             ),
@@ -87,6 +86,8 @@ class SupportScreen extends StatelessWidget {
                     "Call Us",
                     "Emergency Leaks",
                     Colors.green,
+                    isDark,
+                    textTheme,
                   ),
                   const SizedBox(width: 15),
                   _buildContactCard(
@@ -95,48 +96,55 @@ class SupportScreen extends StatelessWidget {
                     "Email",
                     "General Queries",
                     Colors.orange,
+                    isDark,
+                    textTheme,
                   ),
                 ],
               ),
             ),
 
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 30, 20, 10),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 30, 20, 10),
               child: Text(
                 "Support Categories",
-                style: TextStyle(
-                  fontSize: 18,
+                style: textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: brandBlue,
+                  color: isDark ? Colors.white : brandBlue,
                 ),
               ),
             ),
 
-            // Support List linked to respective screens
             _buildSupportTile(
               context,
               Icons.wifi,
               "IoT Device Connectivity",
               IoTConnectivityScreen(),
+              isDark,
+              textTheme,
             ),
-
             _buildSupportTile(
               context,
               Icons.plumbing,
               "Installation Guide",
               InstallationGuideScreen(),
+              isDark,
+              textTheme,
             ),
             _buildSupportTile(
               context,
               Icons.account_balance,
               "NWSDB Coordination",
               NWSDBCoordinationScreen(),
+              isDark,
+              textTheme,
             ),
             _buildSupportTile(
               context,
               Icons.info_outline,
               "App User Manual",
               UserManualScreen(),
+              isDark,
+              textTheme,
             ),
             const SizedBox(height: 30),
           ],
@@ -151,16 +159,20 @@ class SupportScreen extends StatelessWidget {
     String title,
     String subtitle,
     Color color,
+    bool isDark,
+    TextTheme textTheme,
   ) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(15),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: isDark
+                  ? Colors.black.withOpacity(0.3)
+                  : Colors.black.withOpacity(0.05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -172,13 +184,17 @@ class SupportScreen extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               title,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              style: textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               subtitle,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              style: textTheme.bodySmall?.copyWith(
+                color: isDark ? Colors.grey[400] : Colors.grey[600],
+              ),
             ),
           ],
         ),
@@ -186,35 +202,44 @@ class SupportScreen extends StatelessWidget {
     );
   }
 
-  // Updated to include Navigation logic
   Widget _buildSupportTile(
     BuildContext context,
     IconData icon,
     String title,
     Widget destination,
+    bool isDark,
+    TextTheme textTheme,
   ) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: isDark
+                ? Colors.black.withOpacity(0.3)
+                : Colors.black.withOpacity(0.03),
             blurRadius: 5,
             offset: const Offset(0, 2),
           ),
         ],
       ),
       child: ListTile(
-        leading: Icon(icon, color: const Color(0xFF0A1B6F)),
+        leading: Icon(
+          icon,
+          color: isDark ? Colors.lightBlueAccent : const Color(0xFF0A1B6F),
+        ),
         title: Text(
           title,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+          style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
         ),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+        trailing: Icon(
+          Icons.arrow_forward_ios,
+          size: 14,
+          color: isDark ? Colors.grey[400] : Colors.grey[600],
+        ),
         onTap: () {
-          // Navigation to the detail screen
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => destination),
