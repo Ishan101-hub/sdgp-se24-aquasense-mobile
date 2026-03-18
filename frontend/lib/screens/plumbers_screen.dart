@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-// Data Model for Plumbers
 class Plumber {
   final String name;
   final String contact;
@@ -14,8 +13,9 @@ class PlumbersScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // AquaSense primary color
     const Color brandBlue = Color(0xFF0A1B6F);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textTheme = Theme.of(context).textTheme;
 
     final List<Plumber> plumbers = [
       Plumber("Aruna Perera", "071-2345678", "10 Years"),
@@ -26,7 +26,7 @@ class PlumbersScreen extends StatelessWidget {
     ];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFF),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text(
           "Registered Plumbers",
@@ -39,14 +39,13 @@ class PlumbersScreen extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.all(20.0),
+          Padding(
+            padding: const EdgeInsets.all(20.0),
             child: Text(
               "Available Specialists",
-              style: TextStyle(
-                fontSize: 18,
+              style: textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: brandBlue,
+                color: isDark ? Colors.white : brandBlue,
               ),
             ),
           ),
@@ -56,7 +55,13 @@ class PlumbersScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               itemCount: plumbers.length,
               itemBuilder: (context, index) {
-                return _buildVerticalPlumberCard(plumbers[index], brandBlue);
+                return _buildVerticalPlumberCard(
+                  context,
+                  plumbers[index],
+                  brandBlue,
+                  isDark,
+                  textTheme,
+                );
               },
             ),
           ),
@@ -94,20 +99,30 @@ class PlumbersScreen extends StatelessWidget {
     );
   }
 
-  // Helper Widget for vertical cards
-  Widget _buildVerticalPlumberCard(Plumber plumber, Color brandBlue) {
+  Widget _buildVerticalPlumberCard(
+    BuildContext context,
+    Plumber plumber,
+    Color brandBlue,
+    bool isDark,
+    TextTheme textTheme,
+  ) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 15),
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        // Removed 'const' here
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: brandBlue.withOpacity(0.1)),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.08)
+              : brandBlue.withOpacity(0.1),
+        ),
         boxShadow: [
           BoxShadow(
-            color: brandBlue.withOpacity(0.05),
+            color: isDark
+                ? Colors.black.withOpacity(0.3)
+                : brandBlue.withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -117,8 +132,14 @@ class PlumbersScreen extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 30,
-            backgroundColor: brandBlue.withOpacity(0.1),
-            child: Icon(Icons.person, color: brandBlue, size: 30),
+            backgroundColor: isDark
+                ? Colors.white.withOpacity(0.1)
+                : brandBlue.withOpacity(0.1),
+            child: Icon(
+              Icons.person,
+              color: isDark ? Colors.grey[300] : brandBlue,
+              size: 30,
+            ),
           ),
           const SizedBox(width: 15),
           Expanded(
@@ -127,17 +148,17 @@ class PlumbersScreen extends StatelessWidget {
               children: [
                 Text(
                   plumber.name,
-                  style: TextStyle(
-                    // Removed 'const' here
+                  style: textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: brandBlue,
+                    color: isDark ? Colors.white : brandBlue,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   plumber.contact,
-                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                  style: textTheme.bodySmall?.copyWith(
+                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Container(
@@ -146,16 +167,15 @@ class PlumbersScreen extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    // Removed 'const' here
-                    color: brandBlue.withOpacity(0.05),
+                    color: isDark
+                        ? Colors.white.withOpacity(0.08)
+                        : brandBlue.withOpacity(0.05),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     plumber.experience,
-                    style: TextStyle(
-                      // Removed 'const' here
-                      color: brandBlue,
-                      fontSize: 11,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: isDark ? Colors.lightBlueAccent : brandBlue,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -174,4 +194,3 @@ class PlumbersScreen extends StatelessWidget {
     );
   }
 }
- 
