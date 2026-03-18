@@ -1,21 +1,12 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
-// ── Leakage Card Model ───────────────────────────────────────
-// Represents one pipeline zone (Kitchen, Washroom, Outdoor etc)
-// inFlow  = flow sensor at START of pipeline (L/min)
-// outFlow = flow sensor at END of pipeline   (L/min)
-// isValveOpen = true → valve open (water flowing)
-//              false → valve closed (water stopped)
-//
-// LEAK LOGIC:
-//   inFlow - outFlow >= 0.1 → leak detected! → RED card
 class PipelineZone {
   final String name;
-  final double inFlow;       // L/min from IN sensor
-  final double outFlow;      // L/min from OUT sensor
-  final bool isValveOpen;    // valve state
-  final bool isValveClosed;  // manually closed (yellow state)
+  final double inFlow;
+  final double outFlow;
+  final bool isValveOpen;
+  final bool isValveClosed;
 
   const PipelineZone({
     required this.name,
@@ -25,25 +16,11 @@ class PipelineZone {
     this.isValveClosed = false,
   });
 
-  // Auto-detect leak: difference >= 0.1 L/min
   bool get hasLeak => (inFlow - outFlow) >= 0.1;
 }
 
-// ── Leakage Card Widget ──────────────────────────────────────
-// Shows one pipeline zone card with:
-//   - Zone name title
-//   - "Leak Detected" label when leak exists
-//   - IN flow sensor circle (left)
-//   - Valve toggle switch (middle)
-//   - OUT flow sensor circle (right)
-//   - RED border/bg when leak
-//   - YELLOW border/bg when valve manually closed
-//   - NAVY border/bg when normal
 class LeakageCard extends StatefulWidget {
   final PipelineZone zone;
-
-  // Called when user toggles the valve
-  // When backend ready: send API call to open/close valve
   final Function(bool isOpen)? onValveToggle;
 
   const LeakageCard({
@@ -57,8 +34,6 @@ class LeakageCard extends StatefulWidget {
 }
 
 class _LeakageCardState extends State<LeakageCard> {
-
-  // Local valve state (toggles when user taps switch)
   late bool _isValveOpen;
 
   @override
@@ -69,29 +44,57 @@ class _LeakageCardState extends State<LeakageCard> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark   = Theme.of(context).brightness == Brightness.dark;
     final bool hasLeak = widget.zone.hasLeak && _isValveOpen;
 
-    // ── CARD COLORS based on state ──
-    // RED    = leak detected
-    // YELLOW = valve manually closed (no leak, just off)
-    // NAVY   = normal, all good
+    // ── Card border/bg color based on state ──
+    // ── Arc/border color ──
+    // Dark mode + normal → GREEN (as requested)
+    // Light mode + normal → NAVY
     final Color borderColor = hasLeak
-        ? const Color(0xFFD80B0B)       // red — leak!
+        ? const Color(0xFFD80B0B)           // RED — leak
         : !_isValveOpen
-            ? const Color(0xFFE6A817)   // yellow — valve closed
-            : const Color(0xFF1A1A6E); // navy — normal
+            ? const Color(0xFFE6A817)       // YELLOW — valve closed
+            : isDark
+                ? const Color(0xFF2ECC71)   // GREEN — dark mode normal ✅
+                : const Color(0xFF1A1A6E); // NAVY — light mode normal
 
-    final Color bgColor = hasLeak
-        ? const Color(0xFFD80B0B).withValues(alpha: 0.05)
-        : !_isValveOpen
-            ? const Color(0xFFE6A817).withValues(alpha: 0.05)
-            : Colors.white;
+    // ── Background color ──
+    // Light mode: tinted color
+    // Dark mode:  dark card with subtle tint
+    final Color bgColor = isDark
+        ? hasLeak
+            ? const Color(0xFFD80B0B).withValues(alpha: 0.12)
+            : !_isValveOpen
+                ? const Color(0xFFE6A817).withValues(alpha: 0.10)
+                : const Color(0xFF1E1E1E)       // ← dark card, normal state
+        : hasLeak
+            ? const Color(0xFFD80B0B).withValues(alpha: 0.05)
+            : !_isValveOpen
+                ? const Color(0xFFE6A817).withValues(alpha: 0.05)
+                : Colors.white;
 
+    // ── Switch color ──
+    // Normal + valve open → transparent green (as requested)
+    // Leak              → red
+    // Valve closed      → yellow
     final Color switchActiveColor = hasLeak
         ? const Color(0xFFD80B0B)
         : !_isValveOpen
             ? const Color(0xFFE6A817)
-            : const Color(0xFF2ECC71); // green when open & normal
+            : const Color(0xFF2ECC71); // green thumb
+
+    // ── Switch track color ──
+    // When valve is open and normal → transparent green background
+    final Color switchActiveTrack = hasLeak
+        ? const Color(0xFFD80B0B).withValues(alpha: 0.3)
+        : !_isValveOpen
+            ? const Color(0xFFE6A817).withValues(alpha: 0.3)
+            : const Color(0xFF2ECC71).withValues(alpha: 0.25); // ← transparent green ✅
+
+    final double maxFlow = widget.zone.inFlow > widget.zone.outFlow
+        ? widget.zone.inFlow
+        : widget.zone.outFlow;
 
     return Container(
       decoration: BoxDecoration(
@@ -111,22 +114,18 @@ class _LeakageCardState extends State<LeakageCard> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
 
-          // ── TOP ROW: fixed height so card never resizes ──
-          // SizedBox with fixed height = always same space
-          // whether label shows or not
+          // ── Fixed height top row ──
           SizedBox(
-            height: 20, // ← fixed height always!
+            height: 20,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-
-                // Status label — same space always, text just changes
                 Text(
                   hasLeak
                       ? 'Leak Detected'
                       : !_isValveOpen
                           ? 'Valve Closed'
-                          : '', // empty string = invisible but still takes space
+                          : '',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -135,8 +134,6 @@ class _LeakageCardState extends State<LeakageCard> {
                         : const Color(0xFFE6A817),
                   ),
                 ),
-
-                // Warning icon — Opacity 0 = invisible but still takes space
                 Opacity(
                   opacity: hasLeak ? 1.0 : 0.0,
                   child: const Icon(
@@ -145,73 +142,59 @@ class _LeakageCardState extends State<LeakageCard> {
                     size: 20,
                   ),
                 ),
-
               ],
             ),
           ),
 
-          // Zone name (centered)
+          // Zone name
           Text(
             widget.zone.name,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: borderColor,
+              color: isDark ? Colors.white : borderColor,
             ),
           ),
 
           const SizedBox(height: 12),
 
-          // ── MAIN ROW: IN circle + Toggle + OUT circle ──
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
 
-              // ── LEFT: IN flow sensor ──
-              // maxFlow used to calculate relative arc fill
-              // 23.1 / 23.1 = 1.0 → full arc ✅
               _FlowCircle(
-                value: widget.zone.inFlow,
-                maxFlow: widget.zone.inFlow > widget.zone.outFlow
-                    ? widget.zone.inFlow
-                    : widget.zone.outFlow,
-                label: 'IN',
-                color: borderColor,
+                value:   widget.zone.inFlow,
+                maxFlow: maxFlow,
+                label:   'IN',
+                color:   isDark ? Colors.white70 : borderColor,
+                arcColor: borderColor,
+                isDark:  isDark,
               ),
 
-              // ── MIDDLE: Valve toggle switch ──
-              Column(
-                children: [
-                  Transform.scale(
-                    scale: 1.3,
-                    child: Switch(
-                      value: _isValveOpen,
-                      onChanged: (value) {
-                        setState(() => _isValveOpen = value);
-                        // When backend ready:
-                        // widget.onValveToggle?.call(value);
-                        // Send API call to open/close ESP32 valve
-                      },
-                      activeColor: switchActiveColor,
-                      activeTrackColor: switchActiveColor.withValues(alpha: 0.3),
-                      inactiveThumbColor: const Color(0xFFE6A817),
-                      inactiveTrackColor:
-                          const Color(0xFFE6A817).withValues(alpha: 0.3),
-                    ),
-                  ),
-                ],
+              // ── Valve switch ──
+              Transform.scale(
+                scale: 1.3,
+                child: Switch(
+                  value: _isValveOpen,
+                  onChanged: (value) {
+                    setState(() => _isValveOpen = value);
+                    widget.onValveToggle?.call(value);
+                  },
+                  activeColor:      switchActiveColor,
+                  activeTrackColor: switchActiveTrack,     // ← transparent green ✅
+                  inactiveThumbColor: const Color(0xFFE6A817),
+                  inactiveTrackColor: const Color(0xFFE6A817).withValues(alpha: 0.3),
+                ),
               ),
 
-              // ── RIGHT: OUT flow sensor ──
-              // 15.7 / 23.1 = 0.68 → 68% arc ✅ smaller than IN
               _FlowCircle(
-                value: widget.zone.outFlow,
-                maxFlow: widget.zone.inFlow > widget.zone.outFlow
-                    ? widget.zone.inFlow
-                    : widget.zone.outFlow,
-                label: 'OUT',
-                color: borderColor,
+                value:   widget.zone.outFlow,
+                maxFlow: maxFlow,
+                label:   'OUT',
+                color:   isDark ? Colors.white70 : borderColor,
+                arcColor: borderColor,
+                isDark:  isDark,
               ),
 
             ],
@@ -223,35 +206,31 @@ class _LeakageCardState extends State<LeakageCard> {
   }
 }
 
-
-// ── FLOW CIRCLE ──────────────────────────────────────────────
-// Circular arc showing L/min value
-// Arc fill = value / maxFlow → bigger value = more filled arc
 class _FlowCircle extends StatelessWidget {
-  final double value;    // L/min this sensor
-  final double maxFlow;  // highest flow between IN and OUT (for scaling)
-  final String label;    // "IN" or "OUT"
-  final Color color;
+  final double value;
+  final double maxFlow;
+  final String label;
+  final Color  color;
+  final Color  arcColor;
+  final bool   isDark;
 
   const _FlowCircle({
     required this.value,
     required this.maxFlow,
     required this.label,
     required this.color,
+    required this.arcColor,
+    required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
-    // ── PROGRESS: relative to max flow ──
-    // IN  23.1 / 23.1 = 1.00 → full arc   ✅
-    // OUT 15.7 / 23.1 = 0.68 → 68% arc    ✅
     final double progress = maxFlow > 0
         ? (value / maxFlow).clamp(0.0, 1.0)
         : 0.0;
 
     return Column(
       children: [
-
         SizedBox(
           width: 85,
           height: 85,
@@ -259,27 +238,26 @@ class _FlowCircle extends StatelessWidget {
             alignment: Alignment.center,
             children: [
 
-              // Grey background arc (always full)
               CustomPaint(
                 size: const Size(85, 85),
                 painter: _ArcPainter(
                   progress: 1.0,
-                  color: const Color(0xFFE0E0E0),
+                  color: isDark
+                      ? const Color(0xFF333333)
+                      : const Color(0xFFE0E0E0),
                   strokeWidth: 7,
                 ),
               ),
 
-              // Colored arc — fills based on relative speed ✅
               CustomPaint(
                 size: const Size(85, 85),
                 painter: _ArcPainter(
                   progress: progress,
-                  color: color,
+                  color: arcColor,
                   strokeWidth: 7,
                 ),
               ),
 
-              // Value + unit inside
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -294,11 +272,7 @@ class _FlowCircle extends StatelessWidget {
                   ),
                   Text(
                     'L/min',
-                    style: TextStyle(
-                      fontSize: 9,
-                      color: color,
-                      fontWeight: FontWeight.w400,
-                    ),
+                    style: TextStyle(fontSize: 9, color: color),
                   ),
                 ],
               ),
@@ -306,9 +280,7 @@ class _FlowCircle extends StatelessWidget {
             ],
           ),
         ),
-
         const SizedBox(height: 4),
-
         Text(
           label,
           style: TextStyle(
@@ -317,17 +289,14 @@ class _FlowCircle extends StatelessWidget {
             color: color,
           ),
         ),
-
       ],
     );
   }
 }
 
-
-// ── ARC PAINTER ──────────────────────────────────────────────
 class _ArcPainter extends CustomPainter {
-  final double progress; // 0.0 to 1.0
-  final Color color;
+  final double progress;
+  final Color  color;
   final double strokeWidth;
 
   _ArcPainter({
@@ -338,29 +307,26 @@ class _ArcPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()
-      ..color = color
+    final paint = Paint()
+      ..color       = color
       ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+      ..style       = PaintingStyle.stroke
+      ..strokeCap   = StrokeCap.round;
 
-    final double centerX = size.width / 2;
-    final double centerY = size.height / 2;
-    final double radius  = (size.width - strokeWidth) / 2;
-
-    const double startAngle = 140 * math.pi / 180;
-    final double sweepAngle = 260 * math.pi / 180 * progress;
+    final cx     = size.width / 2;
+    final cy     = size.height / 2;
+    final radius = (size.width - strokeWidth) / 2;
 
     canvas.drawArc(
-      Rect.fromCircle(center: Offset(centerX, centerY), radius: radius),
-      startAngle,
-      sweepAngle,
+      Rect.fromCircle(center: Offset(cx, cy), radius: radius),
+      140 * math.pi / 180,
+      260 * math.pi / 180 * progress,
       false,
       paint,
     );
   }
 
   @override
-  bool shouldRepaint(_ArcPainter oldDelegate) =>
-      oldDelegate.progress != progress || oldDelegate.color != color;
+  bool shouldRepaint(_ArcPainter old) =>
+      old.progress != progress || old.color != color;
 }

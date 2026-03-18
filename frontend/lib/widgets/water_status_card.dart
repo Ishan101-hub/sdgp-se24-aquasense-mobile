@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 
 class WaterStatusCard extends StatelessWidget {
-  // Test value for now
-  // When backend is ready, replace this with real value
   final double flowRate;
 
   const WaterStatusCard({
     super.key,
-    this.flowRate = 23.1, // test value (L/min)
+    this.flowRate = 23.1,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white, // ← dark card
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -29,22 +29,20 @@ class WaterStatusCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
 
-          // ── TITLE ──
-          const Align(
+          Align(
             alignment: Alignment.center,
             child: Text(
               'Water Status',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF1A1A6E),
+                color: isDark ? Colors.white : const Color(0xFF1A1A6E),
               ),
             ),
           ),
 
           const SizedBox(height: 16),
 
-          // ── Circle with 23.1 L/min inside ──
           Container(
             width: 110,
             height: 110,
@@ -54,32 +52,31 @@ class WaterStatusCard extends StatelessWidget {
                 color: const Color(0xFF1A1A6E),
                 width: 4,
               ),
-              color: Colors.white,
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
 
-                // ── PART 2.3: Real flow rate value ──
-                // Big number (23.1)
                 Text(
                   flowRate.toStringAsFixed(1),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF1A1A6E),
+                    color: isDark ? Colors.white : const Color(0xFF1A1A6E),
                     height: 1.0,
                   ),
                 ),
 
                 const SizedBox(height: 2),
 
-                // Small "L/min" text below number
-                const Text(
+                Text(
                   'L/min',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Color(0xFF6978EC),
+                    color: isDark
+                        ? const Color(0xFF9BA8FF)
+                        : const Color(0xFF6978EC),
                     fontWeight: FontWeight.w400,
                   ),
                 ),
@@ -90,12 +87,13 @@ class WaterStatusCard extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // ── BOTTOM TEXT ──
-          const Text(
+          Text(
             'Water running speed',
             style: TextStyle(
               fontSize: 13,
-              color: Color(0xFF6978EC),
+              color: isDark
+                  ? const Color(0xFF9BA8FF)
+                  : const Color(0xFF6978EC),
             ),
           ),
 

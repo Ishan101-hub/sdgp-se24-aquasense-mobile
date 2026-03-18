@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
-// ── Zone model ──────────────────────────────────────────────
 class WaterZone {
   final String name;
   final double used;
@@ -24,10 +23,12 @@ class DailyConsumptionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white, // ← dark card
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -42,19 +43,17 @@ class DailyConsumptionCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
 
-          // ── TITLE ──
-          const Text(
+          Text(
             'Daily Consumption',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF1A1A6E),
+              color: isDark ? Colors.white : const Color(0xFF1A1A6E),
             ),
           ),
 
           const SizedBox(height: 20),
 
-          // ── ZONE CIRCLES (only if zones exist) ──
           if (zones.isNotEmpty)
             ...List.generate(
               (zones.length / 3).ceil(),
@@ -68,16 +67,14 @@ class DailyConsumptionCard extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: rowZones.map((zone) {
-                      return _ZoneCircle(zone: zone);
+                      return _ZoneCircle(zone: zone, isDark: isDark);
                     }).toList(),
                   ),
                 );
               },
             ),
 
-          // ── ADD A DEVICE CARD (ALWAYS shows at bottom) ──
-          // User can always tap this to add a new ESP32 device
-          _AddDeviceCard(),
+          _AddDeviceCard(isDark: isDark),
 
         ],
       ),
@@ -85,102 +82,11 @@ class DailyConsumptionCard extends StatelessWidget {
   }
 }
 
-
-// ── ADD A DEVICE CARD ─────────────────────────────────────────
-// Always visible at the bottom of Daily Consumption card
-// When tapped → will connect to backend to register new device
-class _AddDeviceCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        // ── TODO: When backend ready ──
-        // Navigate to device setup page or
-        // call FastAPI to register new ESP32 device
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Device setup coming soon!'),
-            backgroundColor: Color(0xFF1A1A6E),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFEEF4FF),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: const Color(0xFF1A1A6E).withValues(alpha: 0.2),
-            width: 1.5,
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-
-            // ── "+" icon ──
-            Container(
-              width: 36,
-              height: 36,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Color(0xFF1A1A6E),
-              ),
-              child: const Icon(
-                Icons.add,
-                color: Colors.white,
-                size: 22,
-              ),
-            ),
-
-            const SizedBox(width: 12),
-
-            // ── Text ──
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Add a Device',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1A1A6E),
-                  ),
-                ),
-                Text(
-                  'Tap to connect a new ESP32 sensor',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF888888),
-                  ),
-                ),
-              ],
-            ),
-
-            const Spacer(),
-
-            // ── Arrow icon ──
-            const Icon(
-              Icons.arrow_forward_ios,
-              color: Color(0xFF1A1A6E),
-              size: 16,
-            ),
-
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-
-// ── ZONE CIRCLE ──────────────────────────────────────────────
 class _ZoneCircle extends StatelessWidget {
   final WaterZone zone;
+  final bool isDark;
 
-  const _ZoneCircle({required this.zone});
+  const _ZoneCircle({required this.zone, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
@@ -189,9 +95,6 @@ class _ZoneCircle extends StatelessWidget {
         ? 1.0
         : (zone.used / zone.average).clamp(0.0, 1.0);
     final Color arcColor   = isOverLimit
-        ? const Color(0xFFD80B0B)
-        : const Color(0xFF1A1A6E);
-    final Color textColor  = isOverLimit
         ? const Color(0xFFD80B0B)
         : const Color(0xFF1A1A6E);
 
@@ -209,7 +112,9 @@ class _ZoneCircle extends StatelessWidget {
                 size: const Size(95, 95),
                 painter: _ArcPainter(
                   progress: 1.0,
-                  color: const Color(0xFFE0E0E0),
+                  color: isDark
+                      ? const Color(0xFF333333)
+                      : const Color(0xFFE0E0E0),
                   strokeWidth: 8,
                 ),
               ),
@@ -231,7 +136,7 @@ class _ZoneCircle extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: textColor,
+                      color: isDark ? Colors.white : arcColor,
                       height: 1.0,
                     ),
                   ),
@@ -239,7 +144,9 @@ class _ZoneCircle extends StatelessWidget {
                     'Liters',
                     style: TextStyle(
                       fontSize: 10,
-                      color: textColor,
+                      color: isDark
+                          ? Colors.white70
+                          : arcColor,
                       fontWeight: FontWeight.w400,
                     ),
                   ),
@@ -254,10 +161,11 @@ class _ZoneCircle extends StatelessWidget {
 
         Text(
           zone.name,
-          style: const TextStyle(
-            fontSize: 13,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF1A1A6E),
+            color: isDark ? Colors.white : const Color(0xFF1A1A6E),
           ),
         ),
 
@@ -276,11 +184,85 @@ class _ZoneCircle extends StatelessWidget {
   }
 }
 
+class _AddDeviceCard extends StatelessWidget {
+  final bool isDark;
 
-// ── ARC PAINTER ──────────────────────────────────────────────
+  const _AddDeviceCard({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Device setup coming soon!'),
+            backgroundColor: Color(0xFF1A1A6E),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        decoration: BoxDecoration(
+          color: isDark
+              ? const Color(0xFF2A2A2A)       // dark version of light blue
+              : const Color(0xFFEEF4FF),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFF1A1A6E).withValues(alpha: 0.2),
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xFF1A1A6E),
+              ),
+              child: const Icon(Icons.add, color: Colors.white, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Add a Device',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1A1A6E),
+                  ),
+                ),
+                Text(
+                  'Tap to connect a new ESP32 sensor',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark ? Colors.white54 : const Color(0xFF888888),
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            const Icon(
+              Icons.arrow_forward_ios,
+              color: Color(0xFF1A1A6E),
+              size: 16,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ArcPainter extends CustomPainter {
   final double progress;
-  final Color color;
+  final Color  color;
   final double strokeWidth;
 
   _ArcPainter({
@@ -291,31 +273,26 @@ class _ArcPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()
-      ..color = color
+    final paint = Paint()
+      ..color       = color
       ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+      ..style       = PaintingStyle.stroke
+      ..strokeCap   = StrokeCap.round;
 
-    final double centerX = size.width / 2;
-    final double centerY = size.height / 2;
-    final double radius  = (size.width - strokeWidth) / 2;
-
-    const double startAngle = 140 * math.pi / 180;
-    final double sweepAngle = 260 * math.pi / 180 * progress;
+    final cx     = size.width / 2;
+    final cy     = size.height / 2;
+    final radius = (size.width - strokeWidth) / 2;
 
     canvas.drawArc(
-      Rect.fromCircle(center: Offset(centerX, centerY), radius: radius),
-      startAngle,
-      sweepAngle,
+      Rect.fromCircle(center: Offset(cx, cy), radius: radius),
+      140 * math.pi / 180,
+      260 * math.pi / 180 * progress,
       false,
       paint,
     );
   }
 
   @override
-  bool shouldRepaint(_ArcPainter oldDelegate) {
-    return oldDelegate.progress != progress ||
-           oldDelegate.color != color;
-  }
+  bool shouldRepaint(_ArcPainter old) =>
+      old.progress != progress || old.color != color;
 }

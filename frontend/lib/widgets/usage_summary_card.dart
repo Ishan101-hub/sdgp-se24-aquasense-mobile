@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 
 class UsageSummaryCard extends StatelessWidget {
-
   final double dailyAverage;
-  final double dailyConsumption;    // ← comes from home_page (sum of zones)
+  final double dailyConsumption;
   final double weeklyAverage;
   final double weeklyConsumption;
   final double monthlyAverage;
@@ -11,8 +10,8 @@ class UsageSummaryCard extends StatelessWidget {
 
   const UsageSummaryCard({
     super.key,
-    this.dailyAverage      = 300,  // sum of all zone averages
-    this.dailyConsumption  = 0,    // ← passed in from home_page ✅
+    this.dailyAverage      = 300,
+    this.dailyConsumption  = 0,
     this.weeklyAverage     = 1050,
     this.weeklyConsumption = 800,
     this.monthlyAverage    = 215,
@@ -21,18 +20,17 @@ class UsageSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     double maxValue = [
-      dailyAverage,
-      dailyConsumption,
-      weeklyAverage,
-      weeklyConsumption,
-      monthlyAverage,
-      monthlyConsumption,
+      dailyAverage, dailyConsumption,
+      weeklyAverage, weeklyConsumption,
+      monthlyAverage, monthlyConsumption,
     ].reduce((a, b) => a > b ? a : b);
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white, // ← dark card
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -47,76 +45,34 @@ class UsageSummaryCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
 
-          // ── LEGEND ──
+          // ── Legend ──
           Row(
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFCDD8F0),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  const Text(
-                    'Average',
-                    style: TextStyle(fontSize: 13, color: Color(0xFF1A1A6E)),
-                  ),
-                ],
-              ),
+              Row(children: [
+                Container(width: 20, height: 20,
+                    decoration: BoxDecoration(color: const Color(0xFFCDD8F0), borderRadius: BorderRadius.circular(4))),
+                const SizedBox(width: 6),
+                Text('Average', style: TextStyle(fontSize: 13,
+                    color: isDark ? Colors.white70 : const Color(0xFF1A1A6E))),
+              ]),
               const SizedBox(width: 24),
-              Row(
-                children: [
-                  Container(
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A1A6E),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  const Text(
-                    'Consumption',
-                    style: TextStyle(fontSize: 13, color: Color(0xFF1A1A6E)),
-                  ),
-                ],
-              ),
+              Row(children: [
+                Container(width: 20, height: 20,
+                    decoration: BoxDecoration(color: const Color(0xFF1A1A6E), borderRadius: BorderRadius.circular(4))),
+                const SizedBox(width: 6),
+                Text('Consumption', style: TextStyle(fontSize: 13,
+                    color: isDark ? Colors.white70 : const Color(0xFF1A1A6E))),
+              ]),
             ],
           ),
 
           const SizedBox(height: 20),
 
-          // ── DAILY ROW (uses real totalUsed from home_page) ──
-          _SummaryRow(
-            label: 'Daily',
-            averageValue: dailyAverage,
-            consumptionValue: dailyConsumption, // ← real value ✅
-            maxValue: maxValue,
-          ),
-
+          _SummaryRow(label: 'Daily',   averageValue: dailyAverage,   consumptionValue: dailyConsumption,   maxValue: maxValue, isDark: isDark),
           const SizedBox(height: 16),
-
-          // ── WEEKLY ROW ──
-          _SummaryRow(
-            label: 'Weekly',
-            averageValue: weeklyAverage,
-            consumptionValue: weeklyConsumption,
-            maxValue: maxValue,
-          ),
-
+          _SummaryRow(label: 'Weekly',  averageValue: weeklyAverage,  consumptionValue: weeklyConsumption,  maxValue: maxValue, isDark: isDark),
           const SizedBox(height: 16),
-
-          // ── MONTHLY ROW ──
-          _SummaryRow(
-            label: 'Monthly',
-            averageValue: monthlyAverage,
-            consumptionValue: monthlyConsumption,
-            maxValue: maxValue,
-          ),
+          _SummaryRow(label: 'Monthly', averageValue: monthlyAverage, consumptionValue: monthlyConsumption, maxValue: maxValue, isDark: isDark),
 
         ],
       ),
@@ -129,12 +85,14 @@ class _SummaryRow extends StatelessWidget {
   final double averageValue;
   final double consumptionValue;
   final double maxValue;
+  final bool   isDark;
 
   const _SummaryRow({
     required this.label,
     required this.averageValue,
     required this.consumptionValue,
     required this.maxValue,
+    required this.isDark,
   });
 
   @override
@@ -148,14 +106,10 @@ class _SummaryRow extends StatelessWidget {
 
         SizedBox(
           width: 65,
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF1A1A6E),
-            ),
-          ),
+          child: Text(label, style: TextStyle(
+            fontSize: 14, fontWeight: FontWeight.w600,
+            color: isDark ? Colors.white : const Color(0xFF1A1A6E),
+          )),
         ),
 
         Expanded(
@@ -163,60 +117,41 @@ class _SummaryRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
 
-              // Average bar
-              Row(
-                children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: LinearProgressIndicator(
-                        value: averageRatio,
-                        minHeight: 22,
-                        backgroundColor: Colors.transparent,
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                          Color(0xFFCDD8F0),
-                        ),
-                      ),
-                    ),
+              Row(children: [
+                Expanded(child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: averageRatio, minHeight: 22,
+                    backgroundColor: isDark ? const Color(0xFF333333) : Colors.transparent,
+                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFCDD8F0)),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${averageValue.toInt()} liters',
-                    style: const TextStyle(fontSize: 11, color: Color(0xFF888888)),
-                  ),
-                ],
-              ),
+                )),
+                const SizedBox(width: 8),
+                Text('${averageValue.toInt()} liters',
+                    style: TextStyle(fontSize: 11,
+                        color: isDark ? Colors.white54 : const Color(0xFF888888))),
+              ]),
 
               const SizedBox(height: 4),
 
-              // Consumption bar
-              Row(
-                children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: LinearProgressIndicator(
-                        value: consumptionRatio,
-                        minHeight: 22,
-                        backgroundColor: Colors.transparent,
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                          Color(0xFF1A1A6E),
-                        ),
-                      ),
-                    ),
+              Row(children: [
+                Expanded(child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: consumptionRatio, minHeight: 22,
+                    backgroundColor: isDark ? const Color(0xFF333333) : Colors.transparent,
+                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1A1A6E)),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${consumptionValue.toStringAsFixed(1)} liters',
-                    style: const TextStyle(fontSize: 11, color: Color(0xFF888888)),
-                  ),
-                ],
-              ),
+                )),
+                const SizedBox(width: 8),
+                Text('${consumptionValue.toStringAsFixed(1)} liters',
+                    style: TextStyle(fontSize: 11,
+                        color: isDark ? Colors.white54 : const Color(0xFF888888))),
+              ]),
 
             ],
           ),
         ),
-
       ],
     );
   }
