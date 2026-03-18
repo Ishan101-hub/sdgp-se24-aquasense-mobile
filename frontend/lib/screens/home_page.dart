@@ -21,22 +21,22 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
 
   // ── Change this to your FastAPI server URL ──
+  // Same WiFi (real device): 'http://192.168.1.XX:8000'
+  // Android emulator:        'http://10.0.2.2:8000'
+  // Deployed on Render:      'https://your-app.onrender.com'
   static const String _baseUrl = 'http://192.168.1.XX:8000';
 
-  bool _isLoading = true;
+  bool _isLoading   = true;
   String? _error;
-
-  // ── Live data from backend ──
   List<WaterZone> _zones = [];
-  double _flowRate       = 0.0;
-
+  double _flowRate  = 0.0;
   Timer? _timer;
 
   @override
   void initState() {
     super.initState();
     _fetchData();
-    // Auto-refresh every 10 seconds
+    // Auto-refresh every 10 seconds from ESP32 → MQTT → FastAPI
     _timer = Timer.periodic(
       const Duration(seconds: 10),
       (_) => _fetchData(),
@@ -49,19 +49,16 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  // ── Fetch zones from GET /mobile/zones/daily ──
-  // Backend now returns ALL zones dynamically:
-  // [
-  //   {"name": "Bathroom 01", "used": 60.0, "average": 100.0},
-  //   {"name": "Bathroom 02", "used": 80.0, "average": 100.0},
-  //   {"name": "Kitchen 01",  "used": 80.0, "average": 100.0},
-  //   {"name": "Outdoor 01",  "used": 50.0, "average": 80.0},
-  // ]
   Future<void> _fetchData() async {
     try {
+      // Fetch zones and flow rate in parallel for speed
       final results = await Future.wait([
-        http.get(Uri.parse('$_baseUrl/mobile/zones/daily')),
-        http.get(Uri.parse('$_baseUrl/mobile/flowrate')),
+        http.get(Uri.parse('$_baseUrl/mobile/zones/daily')).timeout(
+          const Duration(seconds: 8),
+        ),
+        http.get(Uri.parse('$_baseUrl/mobile/flowrate')).timeout(
+          const Duration(seconds: 8),
+        ),
       ]);
 
       final zonesResponse    = results[0];
@@ -75,8 +72,9 @@ class _HomePageState extends State<HomePage> {
 
         if (mounted) {
           setState(() {
-            // ── Dynamically build zones list from API ──
-            // Works for 1 zone, 10 zones, any number! ✅
+            // ── Dynamic zones from backend ──
+            // Works for any number of zones:
+            // Bathroom 01, Bathroom 02, Kitchen 01, Outdoor 01 etc.
             _zones = zonesData.map((z) => WaterZone(
               name:    z['name']    as String,
               used:    (z['used']    as num).toDouble(),
@@ -88,12 +86,14 @@ class _HomePageState extends State<HomePage> {
             _error     = null;
           });
         }
+      } else {
+        throw Exception('Server error');
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _error     = 'Failed to load data. Check connection.';
+          _error     = 'Failed to load data.\nCheck your connection.';
         });
       }
     }
@@ -105,35 +105,53 @@ class _HomePageState extends State<HomePage> {
 
     // ── Loading state ──
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF1A1A6E)),
+      return Scaffold(
+        backgroundColor: isDark
+            ? const Color(0xFF121212)
+            : const Color(0xFFEEF4FF),
+        body: const Center(
+          child: CircularProgressIndicator(color: Color(0xFF1A1A6E)),
+        ),
       );
     }
 
     // ── Error state ──
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.wifi_off, size: 60, color: Colors.grey),
-            const SizedBox(height: 16),
-            Text(_error!, style: const TextStyle(color: Colors.grey)),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                setState(() { _isLoading = true; _error = null; });
-                _fetchData();
-              },
-              child: const Text('Retry'),
-            ),
-          ],
+      return Scaffold(
+        backgroundColor: isDark
+            ? const Color(0xFF121212)
+            : const Color(0xFFEEF4FF),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.wifi_off, size: 60, color: Colors.grey),
+              const SizedBox(height: 16),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () {
+                  setState(() { _isLoading = true; _error = null; });
+                  _fetchData();
+                },
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1A1A6E),
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    // ── Auto-calculate totals from dynamic zones ──
-    // Works for any number of zones! ✅
+    // ── Auto-calculate totals from live zones ──
     final double totalUsed    = _zones.fold(0, (sum, z) => sum + z.used);
     final double totalAverage = _zones.fold(0, (sum, z) => sum + z.average);
     final double percent      = totalAverage > 0
@@ -145,14 +163,13 @@ class _HomePageState extends State<HomePage> {
       ..._zones
           .where((z) => z.used >= z.average)
           .map((z) => AppNotification(
-                title:            'Over Limit: ${z.name}',
-                message:          '${z.name} consumption reached '
-                                  '${z.used.toStringAsFixed(1)}L, exceeding '
-                                  'the daily average of '
-                                  '${z.average.toStringAsFixed(1)}L.',
-                type:             'consumption',
-                time:             'Just now',
-                targetTabIndex:   0,
+                title:          'Over Limit: ${z.name}',
+                message:        '${z.name} consumption reached '
+                                '${z.used.toStringAsFixed(1)}L, exceeding '
+                                'the daily average of ${z.average.toStringAsFixed(1)}L.',
+                type:           'consumption',
+                time:           'Just now',
+                targetTabIndex: 0,
               )),
     ];
 
@@ -169,21 +186,20 @@ class _HomePageState extends State<HomePage> {
               child: Column(
                 children: [
 
-                  // ── Today card + Water Status card ──
                   IntrinsicHeight(
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Expanded(
                           child: TodayCard(
-                            litresUsed:           totalUsed,
-                            dailyAverageLitres:   totalAverage,
-                            dailyAveragePercent:  percent,
+                            litresUsed:          totalUsed,
+                            dailyAverageLitres:  totalAverage,
+                            dailyAveragePercent: percent,
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          // ← Real flow rate from ESP32 sensor ✅
+                          // Real flow rate from ESP32 sensor ✅
                           child: WaterStatusCard(flowRate: _flowRate),
                         ),
                       ],
@@ -192,17 +208,13 @@ class _HomePageState extends State<HomePage> {
 
                   const SizedBox(height: 16),
 
-                  // ── Daily Consumption card ──
-                  // Passes dynamic zones from API
-                  // UI automatically shows however many zones backend returns ✅
+                  // Dynamic zones from backend ✅
+                  // Bathroom 01, Bathroom 02, Kitchen 01 etc.
                   DailyConsumptionCard(zones: _zones),
 
                   const SizedBox(height: 16),
-
                   UsageChartCard(todayUsage: totalUsed),
-
                   const SizedBox(height: 16),
-
                   UsageSummaryCard(
                     dailyAverage:       totalAverage,
                     dailyConsumption:   totalUsed,

@@ -1,5 +1,5 @@
 # main.py
-# AquaSense v3 – FastAPI application entry point
+# AquaSense v3.1 – FastAPI application entry point
 
 import asyncio
 import logging
@@ -13,11 +13,13 @@ from database import engine
 from models import Base
 from mqtt_service import start_mqtt_listener, periodic_flush
 from aggregation import schedule_aggregation
-from leak_service import set_publish_queue as leak_set_publish_queue  # ← NEW
+from leak_service import set_publish_queue as leak_set_publish_queue
 from auth_router import router as auth_router
 from analytics_router import router as analytics_router
 from device_router import router as device_router
 from device_router import set_publish_queue
+from mobile_router import router as mobile_router          # ← NEW
+from mobile_router import set_mobile_publish_queue         # ← NEW
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,27 +30,23 @@ logger = logging.getLogger("aquasense")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create tables (use Alembic for production migrations)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables verified ✓")
 
-    # Shared MQTT publish queue
-    # Used by both device_router (manual valve commands)
-    # and leak_service (auto-close on high severity leaks)
     publish_queue: asyncio.Queue = asyncio.Queue()
-    set_publish_queue(publish_queue)       # device_router
-    leak_set_publish_queue(publish_queue)  # leak_service  ← NEW
+    set_publish_queue(publish_queue)
+    leak_set_publish_queue(publish_queue)
+    set_mobile_publish_queue(publish_queue)                # ← NEW
 
-    # Background tasks
     tasks = [
         asyncio.create_task(start_mqtt_listener(publish_queue), name="mqtt"),
         asyncio.create_task(periodic_flush(),       name="batch_flush"),
         asyncio.create_task(schedule_aggregation(), name="aggregation"),
     ]
-    logger.info("AquaSense v3 started — %d background tasks running ✓", len(tasks))
+    logger.info("AquaSense v3.1 started — %d background tasks running ✓", len(tasks))
 
-    yield   # Application is running
+    yield
 
     for task in tasks:
         task.cancel()
@@ -59,21 +57,16 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AquaSense API",
     description="IoT Smart Water Monitoring System — production backend",
-    version="3.0.0",
+    version="3.1.0",
     lifespan=lifespan,
 )
 
 # ─── CORS ─────────────────────────────────────────────────────────────────────
-# ENVIRONMENT=development → also allows localhost origins
-# ENVIRONMENT=production  → only CORS_ALLOWED_ORIGINS (no wildcards)
 _env = os.getenv("ENVIRONMENT", "production").lower()
 
 _production_origins: list[str] = [
     origin.strip()
-    for origin in os.getenv(
-        "CORS_ALLOWED_ORIGINS",
-        "https://app.aquasense.com",
-    ).split(",")
+    for origin in os.getenv("CORS_ALLOWED_ORIGINS", "https://app.aquasense.com").split(",")
     if origin.strip()
 ]
 
@@ -99,18 +92,16 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(device_router)
 app.include_router(analytics_router)
+app.include_router(mobile_router)                          # ← NEW
 
 
 @app.get("/health", tags=["system"])
 async def health():
-    return {"status": "ok", "service": "AquaSense", "version": "3.0.0"}
+    return {"status": "ok", "service": "AquaSense", "version": "3.1.0"}
 
 
 if __name__ == "__main__":
     import uvicorn
-    # On Windows, ProactorEventLoop (the default) does not support add_reader()/
-    # add_writer(), which aiomqtt requires. Python 3.14 deprecated set_event_loop_policy;
-    # the replacement is loop_factory in asyncio.run(), which forces SelectorEventLoop.
     config = uvicorn.Config("main:app", host="0.0.0.0", port=8000, reload=False)
     server = uvicorn.Server(config)
     asyncio.run(server.serve(), loop_factory=asyncio.SelectorEventLoop)

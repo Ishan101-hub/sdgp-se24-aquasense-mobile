@@ -12,7 +12,7 @@ class CustomBottomNav extends StatelessWidget {
 
   final List<_NavItem> items = const [
     _NavItem(icon: Icons.home, label: "Home"),
-    _NavItem(icon: Icons.water_damage, label: "Leakages"),
+    _NavItem(icon: Icons.plumbing, label: "Leakages"),
     _NavItem(icon: Icons.description, label: "Report"),
     _NavItem(icon: Icons.opacity, label: "Service"),
     _NavItem(icon: Icons.settings, label: "Settings"),

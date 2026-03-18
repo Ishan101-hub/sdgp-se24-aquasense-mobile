@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
-// ── Zone model ───────────────────────────────────────────────
-// name    = zone_name from backend  e.g. "Bathroom 01"
-// used    = today's usage in litres e.g. 60.0
-// average = 30-day average          e.g. 100.0
 class WaterZone {
   final String name;
   final double used;
@@ -27,10 +23,12 @@ class DailyConsumptionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white, // ← dark card
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -45,29 +43,17 @@ class DailyConsumptionCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
 
-          // ── TITLE ──
-          const Text(
+          Text(
             'Daily Consumption',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF1A1A6E),
+              color: isDark ? Colors.white : const Color(0xFF1A1A6E),
             ),
           ),
 
           const SizedBox(height: 20),
 
-          // ── DYNAMIC ZONE CIRCLES ──────────────────────────
-          // Renders however many zones backend returns
-          //
-          // 1 zone  → ◔             (1 row of 1)
-          // 2 zones → ◔ ◔           (1 row of 2)
-          // 3 zones → ◔ ◔ ◔         (1 row of 3)
-          // 4 zones → ◔ ◔ ◔         (row 1)
-          //           ◔              (row 2)
-          // 5 zones → ◔ ◔ ◔         (row 1)
-          //           ◔ ◔            (row 2)
-          // Works for any number! ✅
           if (zones.isNotEmpty)
             ...List.generate(
               (zones.length / 3).ceil(),
@@ -81,15 +67,14 @@ class DailyConsumptionCard extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: rowZones.map((zone) {
-                      return _ZoneCircle(zone: zone);
+                      return _ZoneCircle(zone: zone, isDark: isDark);
                     }).toList(),
                   ),
                 );
               },
             ),
 
-          // ── ADD A DEVICE CARD (always at bottom) ──
-          _AddDeviceCard(),
+          _AddDeviceCard(isDark: isDark),
 
         ],
       ),
@@ -97,15 +82,11 @@ class DailyConsumptionCard extends StatelessWidget {
   }
 }
 
-
-// ── ZONE CIRCLE ──────────────────────────────────────────────
-// Shows circular arc + litres used + zone name
-// Navy  = normal (used < average)
-// RED   = over limit (used >= average)
 class _ZoneCircle extends StatelessWidget {
   final WaterZone zone;
+  final bool isDark;
 
-  const _ZoneCircle({required this.zone});
+  const _ZoneCircle({required this.zone, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
@@ -116,12 +97,10 @@ class _ZoneCircle extends StatelessWidget {
     final Color arcColor   = isOverLimit
         ? const Color(0xFFD80B0B)
         : const Color(0xFF1A1A6E);
-    final Color textColor  = arcColor;
 
     return Column(
       children: [
 
-        // ── Arc circle ──
         SizedBox(
           width: 95,
           height: 95,
@@ -129,17 +108,17 @@ class _ZoneCircle extends StatelessWidget {
             alignment: Alignment.center,
             children: [
 
-              // Grey background arc
               CustomPaint(
                 size: const Size(95, 95),
                 painter: _ArcPainter(
                   progress: 1.0,
-                  color: const Color(0xFFE0E0E0),
+                  color: isDark
+                      ? const Color(0xFF333333)
+                      : const Color(0xFFE0E0E0),
                   strokeWidth: 8,
                 ),
               ),
 
-              // Colored progress arc
               CustomPaint(
                 size: const Size(95, 95),
                 painter: _ArcPainter(
@@ -149,7 +128,6 @@ class _ZoneCircle extends StatelessWidget {
                 ),
               ),
 
-              // Litres + label inside circle
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -158,7 +136,7 @@ class _ZoneCircle extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: textColor,
+                      color: isDark ? Colors.white : arcColor,
                       height: 1.0,
                     ),
                   ),
@@ -166,7 +144,9 @@ class _ZoneCircle extends StatelessWidget {
                     'Liters',
                     style: TextStyle(
                       fontSize: 10,
-                      color: textColor,
+                      color: isDark
+                          ? Colors.white70
+                          : arcColor,
                       fontWeight: FontWeight.w400,
                     ),
                   ),
@@ -179,19 +159,16 @@ class _ZoneCircle extends StatelessWidget {
 
         const SizedBox(height: 8),
 
-        // ── Zone name from API ──
-        // e.g. "Bathroom 01", "Bathroom 02", "Kitchen 01" ✅
         Text(
           zone.name,
           textAlign: TextAlign.center,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF1A1A6E),
+            color: isDark ? Colors.white : const Color(0xFF1A1A6E),
           ),
         ),
 
-        // Over limit warning
         if (isOverLimit)
           const Text(
             'Over limit!',
@@ -207,9 +184,11 @@ class _ZoneCircle extends StatelessWidget {
   }
 }
 
-
-// ── ADD A DEVICE CARD ──────────────────────────────────────
 class _AddDeviceCard extends StatelessWidget {
+  final bool isDark;
+
+  const _AddDeviceCard({required this.isDark});
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -226,7 +205,9 @@ class _AddDeviceCard extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         decoration: BoxDecoration(
-          color: const Color(0xFFEEF4FF),
+          color: isDark
+              ? const Color(0xFF2A2A2A)       // dark version of light blue
+              : const Color(0xFFEEF4FF),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: const Color(0xFF1A1A6E).withValues(alpha: 0.2),
@@ -246,10 +227,10 @@ class _AddDeviceCard extends StatelessWidget {
               child: const Icon(Icons.add, color: Colors.white, size: 22),
             ),
             const SizedBox(width: 12),
-            const Column(
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Add a Device',
                   style: TextStyle(
                     fontSize: 15,
@@ -259,12 +240,19 @@ class _AddDeviceCard extends StatelessWidget {
                 ),
                 Text(
                   'Tap to connect a new ESP32 sensor',
-                  style: TextStyle(fontSize: 11, color: Color(0xFF888888)),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark ? Colors.white54 : const Color(0xFF888888),
+                  ),
                 ),
               ],
             ),
             const Spacer(),
-            const Icon(Icons.arrow_forward_ios, color: Color(0xFF1A1A6E), size: 16),
+            const Icon(
+              Icons.arrow_forward_ios,
+              color: Color(0xFF1A1A6E),
+              size: 16,
+            ),
           ],
         ),
       ),
@@ -272,8 +260,6 @@ class _AddDeviceCard extends StatelessWidget {
   }
 }
 
-
-// ── ARC PAINTER ──────────────────────────────────────────────
 class _ArcPainter extends CustomPainter {
   final double progress;
   final Color  color;
