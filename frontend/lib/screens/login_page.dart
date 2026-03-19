@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
+import 'home_screen.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  LoginPage({super.key});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -11,38 +11,24 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
 
-  // ── Login controllers ──────────────────────────────────
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-
-  // ── Forgot Password controllers ────────────────────────
+  // ── Forgot Password controllers ──────────────────────────
   final _forgotEmailController = TextEditingController();
   final _forgotNewPasswordController = TextEditingController();
   final _forgotConfirmPasswordController = TextEditingController();
 
-  // ── OTP controllers ────────────────────────────────────
+  // ── OTP controllers ──────────────────────────────────────
   final List<TextEditingController> _otpControllers =
       List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _otpFocusNodes =
       List.generate(6, (_) => FocusNode());
 
-  // ── Login state ────────────────────────────────────────
-  bool _isLoading = false;
-  bool _passwordVisible = false;
-  String _errorMessage = "";
-
-  // ── Forgot password state ──────────────────────────────
   bool _isSendingReset = false;
   bool _isVerifyingOtp = false;
-  bool _isResendingOtp = false;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
 
-
   @override
   void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
     _forgotEmailController.dispose();
     _forgotNewPasswordController.dispose();
     _forgotConfirmPasswordController.dispose();
@@ -51,63 +37,7 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-
-  // ─────────────────────────────────────────────
-  // LOGIN FUNCTION
-  // Calls POST /auth/login on the backend
-  // ─────────────────────────────────────────────
-  Future<void> _login() async {
-    setState(() => _errorMessage = "");
-
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-
-    setState(() => _isLoading = true);
-
-    final result = await ApiService.login(
-      email: _emailController.text.trim(),
-      password: _passwordController.text,
-    );
-
-    setState(() => _isLoading = false);
-
-    if (!mounted) return;
-
-    if (result["success"]) {
-      if (result["two_factor_required"] == true) {
-        Navigator.pushNamed(context, "/2fa-verify");
-        return;
-      }
-
-      // Check terms after login
-      final termsResult = await ApiService.checkTerms();
-
-      if (!mounted) return;
-
-      if (termsResult["success"] &&
-          termsResult["terms_completed"] == false) {
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          "/terms",
-          (route) => false,
-        );
-      } else {
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          "/home",
-          (route) => false,
-        );
-      }
-    } else {
-      setState(() => _errorMessage = result["message"]);
-    }
-  }
-
-
-  // ─────────────────────────────────────────────
-  // STEP 1 — FORGOT PASSWORD DIALOG
-  // User enters email and new password
-  // Calls POST /auth/forgot-password to send OTP
-  // ─────────────────────────────────────────────
+  // ── Step 1: Show email + new password dialog ─────────────
   void _showForgotPasswordDialog() {
     _forgotEmailController.clear();
     _forgotNewPasswordController.clear();
@@ -130,14 +60,14 @@ class _LoginPageState extends State<LoginPage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
 
-                  // ── Header ──
+                  // ── Header ────────────────────────────────
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 22),
                     decoration: const BoxDecoration(
                       color: Color(0xFF0A1B6F),
-                      borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(20)),
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(20)),
                     ),
                     child: const Column(
                       children: [
@@ -156,7 +86,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
 
-                  // ── Body ──
+                  // ── Body ──────────────────────────────────
                   Padding(
                     padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
                     child: Form(
@@ -177,7 +107,7 @@ class _LoginPageState extends State<LoginPage> {
 
                           const SizedBox(height: 18),
 
-                          // ── Email ──
+                          // Email
                           const Text(
                             'Registered Email',
                             style: TextStyle(
@@ -206,7 +136,7 @@ class _LoginPageState extends State<LoginPage> {
 
                           const SizedBox(height: 14),
 
-                          // ── New Password ──
+                          // New Password
                           const Text(
                             'New Password',
                             style: TextStyle(
@@ -240,26 +170,13 @@ class _LoginPageState extends State<LoginPage> {
                               if (v.length < 8) {
                                 return 'Minimum 8 characters';
                               }
-                              if (!RegExp(r'[A-Z]').hasMatch(v)) {
-                                return 'Must contain an uppercase letter';
-                              }
-                              if (!RegExp(r'[a-z]').hasMatch(v)) {
-                                return 'Must contain a lowercase letter';
-                              }
-                              if (!RegExp(r'[0-9]').hasMatch(v)) {
-                                return 'Must contain a digit';
-                              }
-                              if (!RegExp(r'[!@#\$%^&*()_+\-=\[\]{}|]')
-                                  .hasMatch(v)) {
-                                return 'Must contain a special character';
-                              }
                               return null;
                             },
                           ),
 
                           const SizedBox(height: 14),
 
-                          // ── Confirm Password ──
+                          // Confirm Password
                           const Text(
                             'Confirm Password',
                             style: TextStyle(
@@ -290,8 +207,7 @@ class _LoginPageState extends State<LoginPage> {
                               if (v == null || v.isEmpty) {
                                 return 'Please confirm your password';
                               }
-                              if (v !=
-                                  _forgotNewPasswordController.text) {
+                              if (v != _forgotNewPasswordController.text) {
                                 return 'Passwords do not match';
                               }
                               return null;
@@ -300,8 +216,7 @@ class _LoginPageState extends State<LoginPage> {
 
                           const SizedBox(height: 22),
 
-                          // ── Send OTP Button ──
-                          // Calls POST /auth/forgot-password
+                          // Send OTP button
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
@@ -312,38 +227,19 @@ class _LoginPageState extends State<LoginPage> {
                                               ?.validate() ??
                                           false)) return;
 
-                                      setDialogState(() =>
-                                          _isSendingReset = true);
+                                      setDialogState(
+                                          () => _isSendingReset = true);
 
-                                      // Call backend forgot password endpoint
-                                      final result = await ApiService
-                                          .forgotPassword(
-                                        email: _forgotEmailController
-                                            .text
-                                            .trim(),
-                                      );
+                                      // TODO: call backend forgot password endpoint
+                                      // e.g. await ApiService.sendResetOtp(email, newPassword);
+                                      await Future.delayed(const Duration(
+                                          seconds: 1)); // simulate
 
-                                      setDialogState(() =>
-                                          _isSendingReset = false);
+                                      setDialogState(
+                                          () => _isSendingReset = false);
 
-                                      if (!mounted) return;
-
-                                      if (result["success"]) {
-                                        // OTP sent — close this dialog
-                                        // and open OTP dialog
-                                        Navigator.pop(ctx);
-                                        _showResetOtpDialog();
-                                      } else {
-                                        // Show error inside dialog
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                            content:
-                                                Text(result["message"]),
-                                            backgroundColor: Colors.red,
-                                          ),
-                                        );
-                                      }
+                                      Navigator.pop(ctx); // close this dialog
+                                      _showResetOtpDialog(); // open OTP dialog
                                     },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF0A1B6F),
@@ -376,7 +272,7 @@ class _LoginPageState extends State<LoginPage> {
 
                           const SizedBox(height: 8),
 
-                          // ── Cancel ──
+                          // Cancel
                           Center(
                             child: TextButton(
                               onPressed: () => Navigator.pop(ctx),
@@ -402,12 +298,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-
-  // ─────────────────────────────────────────────
-  // STEP 2 — RESET OTP DIALOG
-  // User enters OTP received in email
-  // Calls POST /auth/reset-password to reset password
-  // ─────────────────────────────────────────────
+  // ── Step 2: OTP verification dialog ─────────────────────
   void _showResetOtpDialog() {
     for (final c in _otpControllers) c.clear();
 
@@ -425,14 +316,14 @@ class _LoginPageState extends State<LoginPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
 
-                // ── Header ──
+                // ── Header ──────────────────────────────────
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 22),
                   decoration: const BoxDecoration(
                     color: Color(0xFF0A1B6F),
-                    borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(20)),
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(20)),
                   ),
                   child: const Column(
                     children: [
@@ -451,16 +342,16 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
 
-                // ── Body ──
+                // ── Body ────────────────────────────────────
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
                   child: Column(
                     children: [
 
-                      Text(
-                        'A 6-digit OTP has been sent to\n${_forgotEmailController.text.trim()}\nEnter it below to reset your password.',
+                      const Text(
+                        'A 6-digit OTP has been sent to your email. Enter it below to reset your password.',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           color: Colors.black87,
                           height: 1.5,
@@ -469,10 +360,9 @@ class _LoginPageState extends State<LoginPage> {
 
                       const SizedBox(height: 20),
 
-                      // ── 6 OTP boxes ──
+                      // ── 6 OTP boxes ──────────────────────
                       Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: List.generate(6, (i) {
                           return SizedBox(
                             width: 42,
@@ -492,16 +382,14 @@ class _LoginPageState extends State<LoginPage> {
                                 counterText: '',
                                 contentPadding: EdgeInsets.zero,
                                 enabledBorder: OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(10),
+                                  borderRadius: BorderRadius.circular(10),
                                   borderSide: const BorderSide(
                                     color: Color(0xFF0A1B6F),
                                     width: 1.5,
                                   ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(10),
+                                  borderRadius: BorderRadius.circular(10),
                                   borderSide: const BorderSide(
                                     color: Color(0xFF0A1B6F),
                                     width: 2.5,
@@ -512,11 +400,11 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                               onChanged: (val) {
                                 if (val.isNotEmpty && i < 5) {
-                                  FocusScope.of(ctx).requestFocus(
-                                      _otpFocusNodes[i + 1]);
+                                  FocusScope.of(ctx)
+                                      .requestFocus(_otpFocusNodes[i + 1]);
                                 } else if (val.isEmpty && i > 0) {
-                                  FocusScope.of(ctx).requestFocus(
-                                      _otpFocusNodes[i - 1]);
+                                  FocusScope.of(ctx)
+                                      .requestFocus(_otpFocusNodes[i - 1]);
                                 }
                               },
                             ),
@@ -526,60 +414,33 @@ class _LoginPageState extends State<LoginPage> {
 
                       const SizedBox(height: 8),
 
-                      // ── Resend OTP ──
-                      // Calls POST /auth/forgot-password again
+                      // Resend
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
-                          onPressed: _isResendingOtp
-                              ? null
-                              : () async {
-                                  setDialogState(
-                                      () => _isResendingOtp = true);
-
-                                  final result =
-                                      await ApiService.forgotPassword(
-                                    email: _forgotEmailController.text
-                                        .trim(),
-                                  );
-
-                                  setDialogState(
-                                      () => _isResendingOtp = false);
-
-                                  if (!mounted) return;
-
-                                  ScaffoldMessenger.of(context)
-                                      .showSnackBar(
-                                    SnackBar(
-                                      content: Text(result["message"]),
-                                      backgroundColor: result["success"]
-                                          ? const Color(0xFF0A1B6F)
-                                          : Colors.red,
-                                    ),
-                                  );
-                                },
-                          child: _isResendingOtp
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2),
-                                )
-                              : const Text(
-                                  'Resend OTP',
-                                  style: TextStyle(
-                                    color: Color(0xFF0A1B6F),
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 12,
-                                  ),
-                                ),
+                          onPressed: () {
+                            // TODO: call backend resend OTP endpoint
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('OTP resent to your email.'),
+                                backgroundColor: Color(0xFF0A1B6F),
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            'Resend OTP',
+                            style: TextStyle(
+                              color: Color(0xFF0A1B6F),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
                         ),
                       ),
 
                       const SizedBox(height: 8),
 
-                      // ── Verify and Reset Button ──
-                      // Calls POST /auth/reset-password
+                      // Verify button
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -605,60 +466,38 @@ class _LoginPageState extends State<LoginPage> {
                                   setDialogState(
                                       () => _isVerifyingOtp = true);
 
-                                  // Call backend reset password endpoint
-                                  final result =
-                                      await ApiService.resetPassword(
-                                    email: _forgotEmailController.text
-                                        .trim(),
-                                    otp: otp,
-                                    newPassword:
-                                        _forgotNewPasswordController
-                                            .text,
-                                    confirmPassword:
-                                        _forgotConfirmPasswordController
-                                            .text,
-                                  );
+                                  // TODO: call backend OTP verify + password reset endpoint
+                                  // e.g. await ApiService.verifyResetOtp(email, otp, newPassword);
+                                  await Future.delayed(const Duration(
+                                      seconds: 1)); // simulate
 
                                   setDialogState(
                                       () => _isVerifyingOtp = false);
 
-                                  if (!mounted) return;
+                                  Navigator.pop(ctx); // close OTP dialog
 
-                                  if (result["success"]) {
-                                    // Password reset successful
-                                    // Close OTP dialog
-                                    Navigator.pop(ctx);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                          'Password reset successfully!'),
+                                      backgroundColor: Color(0xFF0A1B6F),
+                                    ),
+                                  );
 
-                                    // Show success message
-                                    ScaffoldMessenger.of(context)
-                                        .showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                            'Password reset successfully! Please login with your new password.'),
-                                        backgroundColor:
-                                            Color(0xFF0A1B6F),
-                                      ),
-                                    );
-
-                                    // Stay on login page
-                                    // User can now login with new password
-                                  } else {
-                                    // Show error
-                                    ScaffoldMessenger.of(context)
-                                        .showSnackBar(
-                                      SnackBar(
-                                        content:
-                                            Text(result["message"]),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
-                                  }
+                                  // Navigate to home, clear all previous routes
+                                  Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const HomeScreen()),
+                                    (route) => false,
+                                  );
                                 },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF0A1B6F),
                             disabledBackgroundColor: Colors.grey[300],
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 14),
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
@@ -685,13 +524,12 @@ class _LoginPageState extends State<LoginPage> {
 
                       const SizedBox(height: 12),
 
-                      // ── Cancel ──
                       TextButton(
                         onPressed: () => Navigator.pop(ctx),
                         child: const Text(
                           'Cancel',
-                          style: TextStyle(
-                              color: Colors.grey, fontSize: 13),
+                          style:
+                              TextStyle(color: Colors.grey, fontSize: 13),
                         ),
                       ),
 
@@ -707,13 +545,13 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-
   // ── Input decoration helper for dialogs ──────────────────
   InputDecoration _dialogInputDecoration(String hint,
       {Widget? suffix}) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
+      hintStyle:
+          TextStyle(color: Colors.grey[400], fontSize: 13),
       contentPadding:
           const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       border: OutlineInputBorder(
@@ -726,8 +564,8 @@ class _LoginPageState extends State<LoginPage> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide:
-            const BorderSide(color: Color(0xFF0A1B6F), width: 1.5),
+        borderSide: const BorderSide(
+            color: Color(0xFF0A1B6F), width: 1.5),
       ),
       filled: true,
       fillColor: Colors.white,
@@ -735,14 +573,11 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
-
-          // ── Background Image ──
           Container(
             decoration: const BoxDecoration(
               image: DecorationImage(
@@ -754,14 +589,11 @@ class _LoginPageState extends State<LoginPage> {
           Container(
             color: Colors.white.withOpacity(0.15),
           ),
-
           SafeArea(
             child: SingleChildScrollView(
               child: Column(
                 children: [
                   const SizedBox(height: 40),
-
-                  // ── Logo ──
                   Transform.scale(
                     scale: 1.8,
                     child: Image.asset(
@@ -771,8 +603,6 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                   const SizedBox(height: 40),
-
-                  // ── Login Card ──
                   Container(
                     margin:
                         const EdgeInsets.symmetric(horizontal: 24),
@@ -795,8 +625,6 @@ class _LoginPageState extends State<LoginPage> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-
-                          // ── Title ──
                           const Center(
                             child: Text(
                               'Login',
@@ -808,38 +636,6 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           const SizedBox(height: 24),
-
-                          // ── Error Message ──
-                          if (_errorMessage.isNotEmpty)
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(12),
-                              margin:
-                                  const EdgeInsets.only(bottom: 16),
-                              decoration: BoxDecoration(
-                                color: Colors.red.shade50,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                    color: Colors.red.shade200),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.error_outline,
-                                      color: Colors.red, size: 18),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      _errorMessage,
-                                      style: const TextStyle(
-                                          color: Colors.red,
-                                          fontSize: 13),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                          // ── Email / Phone Label ──
                           const Text(
                             'Email/Phone :',
                             style: TextStyle(
@@ -849,11 +645,8 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           const SizedBox(height: 6),
-
-                          // ── Email / Phone Input ──
                           TextFormField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
+                            style: const TextStyle(color: Colors.black),
                             decoration: InputDecoration(
                               hintText: 'example@gmail.com',
                               hintStyle: TextStyle(
@@ -863,28 +656,29 @@ class _LoginPageState extends State<LoginPage> {
                                       horizontal: 14, vertical: 12),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(
-                                    color: Colors.grey[300]!),
+                                borderSide:
+                                    BorderSide(color: Colors.grey[300]!),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(
-                                    color: Colors.grey[300]!),
+                                borderSide:
+                                    BorderSide(color: Colors.grey[300]!),
                               ),
                               filled: true,
                               fillColor: Colors.white,
                             ),
                             validator: (value) {
-                              if (value == null ||
-                                  value.trim().isEmpty) {
-                                return 'Please enter your email or phone';
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your email';
+                              } else if (!RegExp(
+                                      r'^[^@]+@[^@]+\.[^@]+')
+                                  .hasMatch(value)) {
+                                return 'Please enter a valid email';
                               }
                               return null;
                             },
                           ),
                           const SizedBox(height: 14),
-
-                          // ── Password Label ──
                           const Text(
                             'Password',
                             style: TextStyle(
@@ -894,11 +688,9 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           const SizedBox(height: 6),
-
-                          // ── Password Input ──
                           TextFormField(
-                            controller: _passwordController,
-                            obscureText: !_passwordVisible,
+                            obscureText: true,
+                            style: const TextStyle(color: Colors.black),
                             decoration: InputDecoration(
                               hintText: 'Password',
                               hintStyle: TextStyle(
@@ -908,44 +700,30 @@ class _LoginPageState extends State<LoginPage> {
                                       horizontal: 14, vertical: 12),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(
-                                    color: Colors.grey[300]!),
+                                borderSide:
+                                    BorderSide(color: Colors.grey[300]!),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(
-                                    color: Colors.grey[300]!),
+                                borderSide:
+                                    BorderSide(color: Colors.grey[300]!),
                               ),
                               filled: true,
                               fillColor: Colors.white,
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _passwordVisible
-                                      ? Icons.visibility_off
-                                      : Icons.visibility,
-                                  color: Colors.grey,
-                                  size: 20,
-                                ),
-                                onPressed: () => setState(() =>
-                                    _passwordVisible =
-                                        !_passwordVisible),
-                              ),
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
                                 return 'Please enter your password';
-                              }
-                              if (value.length < 8) {
+                              } else if (value.length < 8) {
                                 return 'Password must be at least 8 characters';
                               }
                               return null;
                             },
                           ),
                           const SizedBox(height: 6),
-
-                          // ── Forgot Password ──
                           Center(
                             child: TextButton(
+                              // ── Forgot Password tapped ──
                               onPressed: _showForgotPasswordDialog,
                               style: TextButton.styleFrom(
                                 padding: EdgeInsets.zero,
@@ -964,12 +742,20 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           const SizedBox(height: 16),
-
-                          // ── Login Button ──
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
-                              onPressed: _isLoading ? null : _login,
+                              onPressed: () {
+                                if (_formKey.currentState?.validate() ??
+                                    false) {
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const HomeScreen()),
+                                  );
+                                }
+                              },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor:
                                     const Color(0xFF1A3A5C),
@@ -981,28 +767,17 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                                 elevation: 2,
                               ),
-                              child: _isLoading
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Text(
-                                      'Log In',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
+                              child: const Text(
+                                'Log In',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 16),
-
-                          // ── Or continue with ──
                           Center(
                             child: Text(
                               'or continue with',
@@ -1013,13 +788,9 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           const SizedBox(height: 12),
-
-                          // ── Google Login Button ──
                           Center(
                             child: InkWell(
-                              onTap: () {
-                                // Google login will be connected later
-                              },
+                              onTap: () {},
                               borderRadius: BorderRadius.circular(50),
                               child: Container(
                                 padding: const EdgeInsets.all(10),
@@ -1038,8 +809,6 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           const SizedBox(height: 16),
-
-                          // ── Register Link ──
                           Row(
                             mainAxisAlignment:
                                 MainAxisAlignment.center,

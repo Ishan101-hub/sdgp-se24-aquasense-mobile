@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
 
 class TermsScreen extends StatefulWidget {
   const TermsScreen({super.key});
@@ -9,116 +8,23 @@ class TermsScreen extends StatefulWidget {
 }
 
 class _TermsScreenState extends State<TermsScreen> {
-  // Only one checkbox needed
   bool _acceptTerms = false;
 
-  // Loading states
-  bool _isLoading = false;
-  bool _isPageLoading = true;
+  // bool _acceptPrivacy = false;
+  // bool _acceptDataCollection = false;
+  // bool _acceptCookies = false;
+  // bool _acceptMarketing = false;
 
-  // Error message from backend
-  String _errorMessage = "";
-
-  // Button is enabled only when terms checkbox is checked
   bool get _canProceed => _acceptTerms;
-
-
-  @override
-  void initState() {
-    super.initState();
-    // Load saved checkbox state when page opens
-    _loadTermsStatus();
-  }
-
-
-  // ─────────────────────────────────────────────
-  // LOAD TERMS STATUS
-  // Called when page opens
-  // Gets current checkbox state from backend
-  // ─────────────────────────────────────────────
-  Future<void> _loadTermsStatus() async {
-    setState(() => _isPageLoading = true);
-
-    final result = await ApiService.getTermsStatus();
-
-    setState(() => _isPageLoading = false);
-
-    if (result["success"]) {
-      final data = result["data"];
-      setState(() {
-        _acceptTerms = data["terms_of_service"] ?? false;
-      });
-    }
-  }
-
-
-  // ─────────────────────────────────────────────
-  // SAVE TERMS
-  // Called when user clicks Confirm and Save
-  // Sends checkbox state to backend
-  // ─────────────────────────────────────────────
-  Future<void> _saveTerms() async {
-    setState(() {
-      _errorMessage = "";
-      _isLoading = true;
-    });
-
-    final result = await ApiService.saveTerms(
-      termsOfService: _acceptTerms,
-    );
-
-    setState(() => _isLoading = false);
-
-    if (!mounted) return;
-
-    if (result["success"]) {
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Agreements saved successfully!'),
-          backgroundColor: Color(0xFF0A1B6F),
-        ),
-      );
-
-      // Navigate to home screen after saving
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        "/home",
-        (route) => false,
-      );
-    } else {
-      // Show error from backend
-      setState(() => _errorMessage = result["message"]);
-    }
-  }
-
+  // bool get _canProceed =>
+  //     _acceptTerms && _acceptPrivacy && _acceptDataCollection;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Show loading spinner while page is loading saved state
-    if (_isPageLoading) {
-      return Scaffold(
-        backgroundColor:
-            isDark ? const Color(0xFF121212) : Colors.grey[100],
-        appBar: AppBar(
-          backgroundColor: const Color(0xFF0A1B6F),
-          title: const Text('Terms & Conditions',
-              style: TextStyle(color: Colors.white)),
-          iconTheme: const IconThemeData(color: Colors.white),
-        ),
-        body: const Center(
-          child: CircularProgressIndicator(
-            color: Color(0xFF0A1B6F),
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF121212) : Colors.grey[100],
+      backgroundColor: isDark ? const Color(0xFF121212) : Colors.grey[100],
       appBar: AppBar(
         backgroundColor: const Color(0xFF0A1B6F),
         title: const Text('Terms & Conditions',
@@ -130,8 +36,6 @@ class _TermsScreenState extends State<TermsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
-            // ── Terms Text Card ──
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(18),
@@ -154,9 +58,7 @@ class _TermsScreenState extends State<TermsScreen> {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
-                      color: isDark
-                          ? Colors.white
-                          : const Color(0xFF0A1B6F),
+                      color: isDark ? Colors.white : const Color(0xFF0A1B6F),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -207,8 +109,6 @@ class _TermsScreenState extends State<TermsScreen> {
               ),
             ),
             const SizedBox(height: 24),
-
-            // ── Your Agreements Title ──
             Text(
               'Your Agreements',
               style: TextStyle(
@@ -218,8 +118,6 @@ class _TermsScreenState extends State<TermsScreen> {
               ),
             ),
             const SizedBox(height: 12),
-
-            // ── Checkbox Card ──
             Container(
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
@@ -234,67 +132,75 @@ class _TermsScreenState extends State<TermsScreen> {
               ),
               child: Column(
                 children: [
-                  // ── Single Required Checkbox ──
                   _buildCheckTile(
                     title: 'I accept the Terms of Service',
                     subtitle: 'Required to use AquaSense',
                     value: _acceptTerms,
                     isRequired: true,
-                    isLast: true,
-                    onChanged: (val) =>
-                        setState(() => _acceptTerms = val!),
+                    onChanged: (val) => setState(() => _acceptTerms = val!),
                   ),
+
+                  // _buildDivider(),
+                  // _buildCheckTile(
+                  //   title: 'I accept the Privacy Policy',
+                  //   subtitle: 'Required — covers how your data is handled',
+                  //   value: _acceptPrivacy,
+                  //   isRequired: true,
+                  //   onChanged: (val) => setState(() => _acceptPrivacy = val!),
+                  // ),
+
+                  // _buildDivider(),
+                  // _buildCheckTile(
+                  //   title: 'I consent to IoT Data Collection',
+                  //   subtitle: 'Required — sensor data, usage logs',
+                  //   value: _acceptDataCollection,
+                  //   isRequired: true,
+                  //   onChanged: (val) =>
+                  //       setState(() => _acceptDataCollection = val!),
+                  // ),
+
+                  // _buildDivider(),
+                  // _buildCheckTile(
+                  //   title: 'I accept Cookie Policy',
+                  //   subtitle: 'Optional — analytics & session cookies',
+                  //   value: _acceptCookies,
+                  //   onChanged: (val) => setState(() => _acceptCookies = val!),
+                  // ),
+
+                  // _buildDivider(),
+                  // _buildCheckTile(
+                  //   title: 'Receive tips & product updates',
+                  //   subtitle: 'Optional — marketing communications',
+                  //   value: _acceptMarketing,
+                  //   isLast: true,
+                  //   onChanged: (val) =>
+                  //       setState(() => _acceptMarketing = val!),
+                  // ),
                 ],
               ),
             ),
             const SizedBox(height: 12),
-
-            // ── Error Message from Backend ──
-            if (_errorMessage.isNotEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 8),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.shade200),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.error_outline,
-                        color: Colors.red, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _errorMessage,
-                        style: const TextStyle(
-                            color: Colors.red, fontSize: 13),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            // ── Required Fields Notice ──
             if (!_canProceed)
               const Padding(
                 padding: EdgeInsets.only(left: 4),
                 child: Text(
-                  '* Please accept the Terms of Service to continue.',
+                  '* Please accept all required agreements to continue.',
                   style: TextStyle(color: Colors.red, fontSize: 12),
                 ),
               ),
             const SizedBox(height: 24),
-
-            // ── Confirm and Save Button ──
-            // Disabled until checkbox is checked
-            // Shows loading spinner while saving to backend
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _canProceed && !_isLoading
-                    ? _saveTerms
+                onPressed: _canProceed
+                    ? () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Agreements saved successfully!'),
+                            backgroundColor: Color(0xFF0A1B6F),
+                          ),
+                        );
+                      }
                     : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0A1B6F),
@@ -304,33 +210,21 @@ class _TermsScreenState extends State<TermsScreen> {
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : Text(
-                        'Confirm & Save',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color:
-                              _canProceed ? Colors.white : Colors.grey,
-                        ),
-                      ),
+                child: Text(
+                  'Confirm & Save',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: _canProceed ? Colors.white : Colors.grey,
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 20),
           ],
         ),
       ),
     );
   }
-
 
   Widget _buildCheckTile({
     required String title,
@@ -359,8 +253,7 @@ class _TermsScreenState extends State<TermsScreen> {
                       style: TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 13.5,
-                          color:
-                              isDark ? Colors.white : Colors.black),
+                          color: isDark ? Colors.white : Colors.black),
                     ),
                     if (isRequired) ...[
                       const SizedBox(width: 4),
