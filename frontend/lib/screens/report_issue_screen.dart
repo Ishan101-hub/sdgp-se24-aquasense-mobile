@@ -12,7 +12,6 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
   String? selectedIssueType;
   final TextEditingController _descriptionController = TextEditingController();
 
-  // AquaSense Brand Color
   final Color brandBlue = const Color(0xFF0A1B6F);
 
   final List<String> issueTypes = [
@@ -21,15 +20,21 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
     'Connectivity Issue',
     'Inaccurate Usage Data',
     'Physical Damage',
-    'Other'
+    'Other',
   ];
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFF),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text("Report Issue", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          "Report Issue",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: brandBlue,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -43,40 +48,59 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
             children: [
               Text(
                 "Submit a Maintenance Request",
-                style: TextStyle(
-                  fontSize: 18,
+                style: textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: brandBlue,
+                  color: isDark ? Colors.white : brandBlue,
                 ),
               ),
               const SizedBox(height: 10),
-              const Text(
+              Text(
                 "Describe the problem you're experiencing with your AquaSense system.",
-                style: TextStyle(color: Colors.grey, fontSize: 14),
+                style: textTheme.bodySmall?.copyWith(
+                  color: isDark ? Colors.grey[400] : Colors.grey,
+                ),
               ),
               const SizedBox(height: 30),
 
               // Issue Type Dropdown
-              const Text("Issue Category", style: TextStyle(fontWeight: FontWeight.w600)),
+              Text(
+                "Issue Category",
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                decoration: _inputDecoration("Select Category"),
+                decoration: _inputDecoration("Select Category", isDark),
+                dropdownColor: isDark ? const Color(0xFF1E1E2E) : Colors.white,
+                style: textTheme.bodyMedium?.copyWith(
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
                 items: issueTypes.map((type) {
                   return DropdownMenuItem(value: type, child: Text(type));
                 }).toList(),
                 onChanged: (value) => setState(() => selectedIssueType = value),
-                validator: (value) => value == null ? 'Please select a category' : null,
+                validator: (value) =>
+                    value == null ? 'Please select a category' : null,
               ),
               const SizedBox(height: 25),
 
               // Description Field
-              const Text("Description", style: TextStyle(fontWeight: FontWeight.w600)),
+              Text(
+                "Description",
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: 10),
               TextFormField(
                 controller: _descriptionController,
                 maxLines: 5,
-                decoration: _inputDecoration("Provide more details..."),
-                validator: (value) => value == null || value.isEmpty ? 'Please enter a description' : null,
+                style: textTheme.bodyMedium,
+                decoration: _inputDecoration("Provide more details...", isDark),
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Please enter a description'
+                    : null,
               ),
               const SizedBox(height: 40),
 
@@ -87,9 +111,10 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
                 child: ElevatedButton(
                   onPressed: () {
                     if (_formKey.currentState!.validate()) {
-                      // This will integrate with your FastAPI backend later [cite: 811]
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Issue reported successfully!")),
+                        const SnackBar(
+                          content: Text("Issue reported successfully!"),
+                        ),
                       );
                       Navigator.pop(context);
                     }
@@ -97,9 +122,14 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: brandBlue,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                  child: const Text("SUBMIT REPORT", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    "SUBMIT REPORT",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ],
@@ -109,23 +139,43 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
     );
   }
 
-  InputDecoration _inputDecoration(String hint) {
+  InputDecoration _inputDecoration(String hint, bool isDark) {
     return InputDecoration(
       hintText: hint,
+      hintStyle: TextStyle(color: isDark ? Colors.grey[500] : Colors.grey),
       filled: true,
-      fillColor: Colors.white,
+      fillColor: isDark ? const Color(0xFF1E1E2E) : Colors.white,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: brandBlue.withOpacity(0.2)),
+        borderSide: BorderSide(
+          color: isDark
+              ? Colors.white.withOpacity(0.15)
+              : brandBlue.withOpacity(0.2),
+        ),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: brandBlue.withOpacity(0.1)),
+        borderSide: BorderSide(
+          color: isDark
+              ? Colors.white.withOpacity(0.12)
+              : brandBlue.withOpacity(0.1),
+        ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: brandBlue, width: 2),
+        borderSide: BorderSide(
+          color: isDark ? Colors.lightBlueAccent : brandBlue,
+          width: 2,
+        ),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Colors.redAccent),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 2),
       ),
     );
   }

@@ -18,15 +18,20 @@ class SupportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textTheme = Theme.of(context).textTheme;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: isDark
+                ? Colors.black.withOpacity(0.3)
+                : Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -36,10 +41,15 @@ class SupportCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
-            backgroundColor: color.withOpacity(0.1),
+            backgroundColor: isDark
+                ? color.withOpacity(0.2)
+                : color.withOpacity(0.1),
             child: Text(
               "$step",
-              style: TextStyle(color: color, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: isDark ? color.withOpacity(0.9) : color,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           const SizedBox(width: 20),
@@ -49,24 +59,26 @@ class SupportCard extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    fontSize: 16,
+                  style: textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 5),
                 Text(
                   desc,
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 13,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: isDark ? Colors.grey[400] : Colors.grey[600],
                     height: 1.4,
                   ),
                 ),
               ],
             ),
           ),
-          Icon(icon, color: color.withOpacity(0.3), size: 40),
+          Icon(
+            icon,
+            color: isDark ? color.withOpacity(0.5) : color.withOpacity(0.3),
+            size: 40,
+          ),
         ],
       ),
     );

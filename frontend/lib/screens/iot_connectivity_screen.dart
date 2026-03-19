@@ -7,9 +7,11 @@ class IoTConnectivityScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const Color brandBlue = Color(0xFF0A1B6F);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFF),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text(
           "IoT Connectivity",
@@ -21,8 +23,9 @@ class IoTConnectivityScreen extends StatelessWidget {
       ),
       body: SingleChildScrollView(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // THIS IS THE HEADER SECTION THAT IS CURRENTLY MISSING
+            // Header Banner — stays brandBlue in both modes
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(25),
@@ -49,9 +52,19 @@ class IoTConnectivityScreen extends StatelessWidget {
               ),
             ),
 
-            // Your Support Cards
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 25, 20, 10),
+              child: Text(
+                "Setup Steps",
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : brandBlue,
+                ),
+              ),
+            ),
+
             const Padding(
-              padding: EdgeInsets.all(20),
+              padding: EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 children: [
                   SupportCard(
@@ -81,6 +94,8 @@ class IoTConnectivityScreen extends StatelessWidget {
                 ],
               ),
             ),
+
+            const SizedBox(height: 20),
           ],
         ),
       ),

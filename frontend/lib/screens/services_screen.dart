@@ -1,94 +1,103 @@
 import 'package:flutter/material.dart';
 import '../widgets/service_card.dart';
 import 'plumbers_screen.dart';
-import 'support_screen.dart'; // Added import
-import 'report_issue_screen.dart'; // Added import
-import 'installation_screen.dart'; // Added import
+import 'support_screen.dart';
+import 'report_issue_screen.dart';
+import 'installation_screen.dart';
 
 class ServicesScreen extends StatelessWidget {
   const ServicesScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // AquaSense primary color defined in your hardware/software requirements [cite: 177, 183]
-    const Color brandBlue = Color(0xFF0A1B6F);
+    // 1. Get Theme Data for Dynamic Styling
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // Use Brand Blue for Light Mode, and a lighter version or White for Dark Mode title
+    final Color titleColor = isDark ? Colors.white : const Color(0xFF0A1B6F);
+
+    // 2. Get Screen Dimensions for Scaling
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final double scale = screenWidth / 393;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFF),
-      appBar: AppBar(
-        title: const Text(
-          'Our Services',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: brandBlue,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: GridView.count(
-          crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          // Ratio set to 0.70 to make cards taller for better visibility on Redmi Note 9S
-          childAspectRatio: 0.58,
-          children: [
-            // 1. New Installation
-            ServiceCard(
-              icon: Icons.build,
-              title: 'New Installation',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const InstallationScreen(),
+      // Automatically uses theme's background color
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          padding: EdgeInsets.all(16.0 * scale),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: 10 * scale),
+                child: Text(
+                  'Our Services',
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 26 * scale,
+                    color: titleColor, // Dynamically adjusted color
                   ),
-                );
-              },
-            ),
-
-            // 2. Registered Plumbers
-            ServiceCard(
-              icon: Icons.engineering,
-              title: 'Registered Plumbers',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const PlumbersScreen(),
+                ),
+              ),
+              SizedBox(height: 10 * scale),
+              GridView.count(
+                crossAxisCount: 2,
+                crossAxisSpacing: 16 * scale,
+                mainAxisSpacing: 16 * scale,
+                childAspectRatio: 0.85,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  ServiceCard(
+                    icon: Icons.build,
+                    title: 'New Installation',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const InstallationScreen(),
+                      ),
+                    ),
                   ),
-                );
-              },
-            ),
-
-            // 3. Report Issue
-            ServiceCard(
-              icon: Icons.report_gmailerrorred,
-              title: 'Report Issue',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ReportIssueScreen(),
+                  ServiceCard(
+                    icon: Icons.engineering,
+                    title: 'Registered Plumbers',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const PlumbersScreen(),
+                      ),
+                    ),
                   ),
-                );
-              },
-            ),
-
-            // 4. Customer Support
-            ServiceCard(
-              icon: Icons.headset_mic,
-              title: 'Customer Support',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const SupportScreen(),
+                  ServiceCard(
+                    icon: Icons.report_gmailerrorred,
+                    title: 'Report Issue',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ReportIssueScreen(),
+                      ),
+                    ),
                   ),
-                );
-              },
-            ),
-          ],
+                  ServiceCard(
+                    icon: Icons.headset_mic,
+                    title: 'Customer Support',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SupportScreen(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 30 * scale),
+            ],
+          ),
         ),
       ),
     );
