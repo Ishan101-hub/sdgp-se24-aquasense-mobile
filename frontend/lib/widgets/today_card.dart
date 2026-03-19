@@ -15,11 +15,12 @@ class TodayCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark   = Theme.of(context).brightness == Brightness.dark;
     double progress = (litresUsed / dailyAverageLitres).clamp(0.0, 1.0);
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white, // ← dark card
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -34,22 +35,20 @@ class TodayCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
 
-          // ── TITLE ──
-          const Align(
+          Align(
             alignment: Alignment.center,
             child: Text(
               'Today',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF1A1A6E),
+                color: isDark ? Colors.white : const Color(0xFF1A1A6E),
               ),
             ),
           ),
 
           const SizedBox(height: 16),
 
-          // ── Circular loading bar ──
           SizedBox(
             width: 130,
             height: 130,
@@ -57,20 +56,20 @@ class TodayCard extends StatelessWidget {
               alignment: Alignment.center,
               children: [
 
-                // Grey background circle
                 SizedBox(
                   width: 130,
                   height: 130,
                   child: CustomPaint(
                     painter: _CircularBarPainter(
                       progress: 1.0,
-                      color: const Color(0xFFE0E0E0),
+                      color: isDark
+                          ? const Color(0xFF333333)
+                          : const Color(0xFFE0E0E0),
                       strokeWidth: 10,
                     ),
                   ),
                 ),
 
-                // Navy blue progress circle
                 SizedBox(
                   width: 130,
                   height: 130,
@@ -83,25 +82,25 @@ class TodayCard extends StatelessWidget {
                   ),
                 ),
 
-                // ── FIXED: 1 decimal point ──
                 RichText(
                   textAlign: TextAlign.center,
                   text: TextSpan(
                     children: [
                       TextSpan(
-                        // ← toStringAsFixed(1) gives 1 decimal e.g. 220.0
                         text: litresUsed.toStringAsFixed(1),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 30,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF1A1A6E),
+                          color: isDark ? Colors.white : const Color(0xFF1A1A6E),
                         ),
                       ),
-                      const TextSpan(
+                      TextSpan(
                         text: '\nLitres',
                         style: TextStyle(
                           fontSize: 13,
-                          color: Color(0xFF6978EC),
+                          color: isDark
+                              ? const Color(0xFF9BA8FF)
+                              : const Color(0xFF6978EC),
                           fontWeight: FontWeight.w400,
                         ),
                       ),
@@ -115,12 +114,13 @@ class TodayCard extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // ── percentage text ──
           Text(
             '${dailyAveragePercent.toStringAsFixed(1)}% of daily average',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
-              color: Color(0xFF6978EC),
+              color: isDark
+                  ? const Color(0xFF9BA8FF)
+                  : const Color(0xFF6978EC),
             ),
           ),
 
@@ -130,10 +130,9 @@ class TodayCard extends StatelessWidget {
   }
 }
 
-// ── CUSTOM PAINTER ──
 class _CircularBarPainter extends CustomPainter {
   final double progress;
-  final Color color;
+  final Color  color;
   final double strokeWidth;
 
   _CircularBarPainter({
@@ -144,34 +143,26 @@ class _CircularBarPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()
-      ..color = color
+    final paint = Paint()
+      ..color       = color
       ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+      ..style       = PaintingStyle.stroke
+      ..strokeCap   = StrokeCap.round;
 
-    final double centerX = size.width / 2;
-    final double centerY = size.height / 2;
-    final double radius = (size.width - strokeWidth) / 2;
-
-    const double startAngle = 140 * math.pi / 180;
-    final double sweepAngle = 260 * math.pi / 180 * progress;
+    final cx     = size.width / 2;
+    final cy     = size.height / 2;
+    final radius = (size.width - strokeWidth) / 2;
 
     canvas.drawArc(
-      Rect.fromCircle(
-        center: Offset(centerX, centerY),
-        radius: radius,
-      ),
-      startAngle,
-      sweepAngle,
+      Rect.fromCircle(center: Offset(cx, cy), radius: radius),
+      140 * math.pi / 180,
+      260 * math.pi / 180 * progress,
       false,
       paint,
     );
   }
 
   @override
-  bool shouldRepaint(_CircularBarPainter oldDelegate) {
-    return oldDelegate.progress != progress ||
-           oldDelegate.color != color;
-  }
+  bool shouldRepaint(_CircularBarPainter old) =>
+      old.progress != progress || old.color != color;
 }

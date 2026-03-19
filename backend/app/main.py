@@ -20,23 +20,16 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ─────────────────────────────────────────────
 # CORS SETTINGS
-# Controls which frontend origins are allowed to talk to this API
-# During development we allow localhost ports used by Flutter
-# In production replace these with your real app URLs
+# allow_origins=["*"] allows Chrome browser and any frontend to connect
+# allow_credentials must be False when using ["*"]
+# Change this to specific origins before going to production
 # ─────────────────────────────────────────────
-origins = [
-    "http://localhost:3000",        # React web app if needed
-    "http://localhost:8081",        # Flutter web running locally
-    "http://127.0.0.1:3000",        # Alternative localhost address
-    "http://127.0.0.1:8081",        # Alternative localhost address
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["*"],        # allows Chrome, Flutter web, any origin
+    allow_credentials=False,    # must be False when allow_origins is ["*"]
+    allow_methods=["*"],        # allows GET, POST, PUT, DELETE etc
+    allow_headers=["*"],        # allows Authorization, Content-Type etc
 )
 
 # ─────────────────────────────────────────────

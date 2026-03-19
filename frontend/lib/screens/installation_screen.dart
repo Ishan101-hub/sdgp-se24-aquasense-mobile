@@ -10,18 +10,19 @@ class InstallationScreen extends StatefulWidget {
 class _InstallationScreenState extends State<InstallationScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // AquaSense Brand Color
   final Color brandBlue = const Color(0xFF0A1B6F);
 
-  // Form Field Controllers
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _zoneController = TextEditingController();
   DateTime? selectedDate;
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFF),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text(
           "New Installation",
@@ -40,54 +41,67 @@ class _InstallationScreenState extends State<InstallationScreen> {
             children: [
               Text(
                 "Request System Setup",
-                style: TextStyle(
-                  fontSize: 18,
+                style: textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: brandBlue,
+                  color: isDark ? Colors.white : brandBlue,
                 ),
               ),
               const SizedBox(height: 10),
-              const Text(
+              Text(
                 "Provide details to schedule an installation for your multi-zone water management system.",
-                style: TextStyle(color: Colors.grey, fontSize: 14),
+                style: textTheme.bodySmall?.copyWith(
+                  color: isDark ? Colors.grey[400] : Colors.grey,
+                ),
               ),
               const SizedBox(height: 30),
 
               // Installation Address
-              const Text(
+              Text(
                 "Installation Address",
-                style: TextStyle(fontWeight: FontWeight.w600),
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 10),
               TextFormField(
                 controller: _addressController,
-                decoration: _inputDecoration("e.g., 123 Main St, Ragama"),
+                style: textTheme.bodyMedium,
+                decoration: _inputDecoration(
+                  "e.g., 123 Main St, Ragama",
+                  isDark,
+                ),
                 validator: (value) =>
                     value!.isEmpty ? 'Please enter your address' : null,
               ),
               const SizedBox(height: 20),
 
               // Number of Zones
-              const Text(
+              Text(
                 "Number of Zones (Lines)",
-                style: TextStyle(fontWeight: FontWeight.w600),
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 10),
               TextFormField(
                 controller: _zoneController,
                 keyboardType: TextInputType.number,
+                style: textTheme.bodyMedium,
                 decoration: _inputDecoration(
                   "e.g., 3 (Kitchen, Bathroom, Garden)",
+                  isDark,
                 ),
                 validator: (value) =>
                     value!.isEmpty ? 'Enter the number of sub-lines' : null,
               ),
               const SizedBox(height: 20),
 
-              // Date Picker Section
-              const Text(
+              // Date Picker
+              Text(
                 "Preferred Date",
-                style: TextStyle(fontWeight: FontWeight.w600),
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 10),
               InkWell(
@@ -108,9 +122,13 @@ class _InstallationScreenState extends State<InstallationScreen> {
                     vertical: 15,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: brandBlue.withOpacity(0.1)),
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.white.withOpacity(0.15)
+                          : brandBlue.withOpacity(0.1),
+                    ),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -119,13 +137,17 @@ class _InstallationScreenState extends State<InstallationScreen> {
                         selectedDate == null
                             ? "Select Date"
                             : "${selectedDate!.day}/${selectedDate!.month}/${selectedDate!.year}",
-                        style: TextStyle(
+                        style: textTheme.bodyMedium?.copyWith(
                           color: selectedDate == null
-                              ? Colors.grey
-                              : Colors.black,
+                              ? (isDark ? Colors.grey[500] : Colors.grey)
+                              : (isDark ? Colors.white : Colors.black),
                         ),
                       ),
-                      Icon(Icons.calendar_today, color: brandBlue, size: 20),
+                      Icon(
+                        Icons.calendar_today,
+                        color: isDark ? Colors.grey[400] : brandBlue,
+                        size: 20,
+                      ),
                     ],
                   ),
                 ),
@@ -140,7 +162,6 @@ class _InstallationScreenState extends State<InstallationScreen> {
                   onPressed: () {
                     if (_formKey.currentState!.validate() &&
                         selectedDate != null) {
-                      // This links to your Phase 4: Backend API Development [cite: 805]
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text("Installation request sent!"),
@@ -173,23 +194,43 @@ class _InstallationScreenState extends State<InstallationScreen> {
     );
   }
 
-  InputDecoration _inputDecoration(String hint) {
+  InputDecoration _inputDecoration(String hint, bool isDark) {
     return InputDecoration(
       hintText: hint,
+      hintStyle: TextStyle(color: isDark ? Colors.grey[500] : Colors.grey),
       filled: true,
-      fillColor: Colors.white,
+      fillColor: isDark ? const Color(0xFF1E1E2E) : Colors.white,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: brandBlue.withOpacity(0.2)),
+        borderSide: BorderSide(
+          color: isDark
+              ? Colors.white.withOpacity(0.15)
+              : brandBlue.withOpacity(0.2),
+        ),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: brandBlue.withOpacity(0.1)),
+        borderSide: BorderSide(
+          color: isDark
+              ? Colors.white.withOpacity(0.12)
+              : brandBlue.withOpacity(0.1),
+        ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: brandBlue, width: 2),
+        borderSide: BorderSide(
+          color: isDark ? Colors.lightBlueAccent : brandBlue,
+          width: 2,
+        ),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Colors.redAccent),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Colors.redAccent, width: 2),
       ),
     );
   }

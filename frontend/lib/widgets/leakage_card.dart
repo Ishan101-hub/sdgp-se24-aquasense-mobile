@@ -1,21 +1,16 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
-// ── Leakage Card Model ───────────────────────────────────────
-// Represents one pipeline zone (Kitchen, Washroom, Outdoor etc)
-// inFlow  = flow sensor at START of pipeline (L/min)
-// outFlow = flow sensor at END of pipeline   (L/min)
-// isValveOpen = true → valve open (water flowing)
-//              false → valve closed (water stopped)
-//
-// LEAK LOGIC:
-//   inFlow - outFlow >= 0.1 → leak detected! → RED card
+// ── PipelineZone model ───────────────────────────────────────
+// Updated with isActive and lastSeen fields from backend
 class PipelineZone {
   final String name;
-  final double inFlow;       // L/min from IN sensor
-  final double outFlow;      // L/min from OUT sensor
-  final bool isValveOpen;    // valve state
-  final bool isValveClosed;  // manually closed (yellow state)
+  final double inFlow;
+  final double outFlow;
+  final bool isValveOpen;
+  final bool isValveClosed;
+  final bool isActive;          // NEW — false = offline device
+  final DateTime? lastSeen;     // NEW — when device last sent data
 
   const PipelineZone({
     required this.name,
@@ -23,27 +18,43 @@ class PipelineZone {
     required this.outFlow,
     required this.isValveOpen,
     this.isValveClosed = false,
+    this.isActive      = true,  // default active
+    this.lastSeen,
   });
 
-  // Auto-detect leak: difference >= 0.1 L/min
+  // ── fromJson: parses backend API response ──
+  // GET /mobile/zones?network_id=home_01
+  factory PipelineZone.fromJson(Map<String, dynamic> json) {
+    return PipelineZone(
+      name:         json['name']         as String,
+      inFlow:       (json['in_flow']     as num).toDouble(),
+      outFlow:      (json['out_flow']    as num).toDouble(),
+      isValveOpen:  json['valve_open']   as bool,
+      isValveClosed: !(json['valve_open'] as bool),
+      isActive:     json['is_active']    as bool? ?? true,
+      lastSeen:     json['last_seen'] != null
+          ? DateTime.tryParse(json['last_seen'] as String)
+          : null,
+    );
+  }
+
+  // ── Leak logic: difference >= 0.1 L/min ──
   bool get hasLeak => (inFlow - outFlow) >= 0.1;
+
+  // ── Human readable last seen ──
+  String get lastSeenText {
+    if (lastSeen == null) return 'Never';
+    final diff = DateTime.now().difference(lastSeen!);
+    if (diff.inSeconds < 60)  return '${diff.inSeconds}s ago';
+    if (diff.inMinutes < 60)  return '${diff.inMinutes} min ago';
+    if (diff.inHours < 24)    return '${diff.inHours} hr ago';
+    return '${diff.inDays} days ago';
+  }
 }
 
-// ── Leakage Card Widget ──────────────────────────────────────
-// Shows one pipeline zone card with:
-//   - Zone name title
-//   - "Leak Detected" label when leak exists
-//   - IN flow sensor circle (left)
-//   - Valve toggle switch (middle)
-//   - OUT flow sensor circle (right)
-//   - RED border/bg when leak
-//   - YELLOW border/bg when valve manually closed
-//   - NAVY border/bg when normal
+// ── LeakageCard ──────────────────────────────────────────────
 class LeakageCard extends StatefulWidget {
   final PipelineZone zone;
-
-  // Called when user toggles the valve
-  // When backend ready: send API call to open/close valve
   final Function(bool isOpen)? onValveToggle;
 
   const LeakageCard({
@@ -57,8 +68,6 @@ class LeakageCard extends StatefulWidget {
 }
 
 class _LeakageCardState extends State<LeakageCard> {
-
-  // Local valve state (toggles when user taps switch)
   late bool _isValveOpen;
 
   @override
@@ -67,31 +76,59 @@ class _LeakageCardState extends State<LeakageCard> {
     _isValveOpen = widget.zone.isValveOpen;
   }
 
+  // Update local state when backend data refreshes
+  @override
+  void didUpdateWidget(LeakageCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.zone.isValveOpen != widget.zone.isValveOpen) {
+      _isValveOpen = widget.zone.isValveOpen;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final bool hasLeak = widget.zone.hasLeak && _isValveOpen;
+    final isDark   = Theme.of(context).brightness == Brightness.dark;
+    final bool isOffline = !widget.zone.isActive;            // NEW
+    final bool hasLeak   = widget.zone.hasLeak && _isValveOpen && !isOffline;
 
-    // ── CARD COLORS based on state ──
-    // RED    = leak detected
-    // YELLOW = valve manually closed (no leak, just off)
-    // NAVY   = normal, all good
-    final Color borderColor = hasLeak
-        ? const Color(0xFFD80B0B)       // red — leak!
-        : !_isValveOpen
-            ? const Color(0xFFE6A817)   // yellow — valve closed
-            : const Color(0xFF1A1A6E); // navy — normal
+    // ── Card colors based on state ──
+    // 🔴 Leak    → Red
+    // 🟡 Closed  → Yellow
+    // ⚫ Offline → Grey
+    // 🔵 Normal  → Navy (dark) / Green (dark mode)
+    final Color borderColor = isOffline
+        ? Colors.grey                               // ⚫ Offline
+        : hasLeak
+            ? const Color(0xFFD80B0B)               // 🔴 Leak
+            : !_isValveOpen
+                ? const Color(0xFFE6A817)           // 🟡 Valve closed
+                : isDark
+                    ? const Color(0xFF1A8C4E)       // 🟢 Normal dark
+                    : const Color(0xFF1A1A6E);      // 🔵 Normal light
 
-    final Color bgColor = hasLeak
-        ? const Color(0xFFD80B0B).withValues(alpha: 0.05)
-        : !_isValveOpen
-            ? const Color(0xFFE6A817).withValues(alpha: 0.05)
-            : Colors.white;
+    final Color bgColor = isOffline
+        ? (isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF0F0F0))
+        : hasLeak
+            ? const Color(0xFFD80B0B).withValues(alpha: isDark ? 0.12 : 0.05)
+            : !_isValveOpen
+                ? const Color(0xFFE6A817).withValues(alpha: isDark ? 0.10 : 0.05)
+                : isDark
+                    ? const Color(0xFF1E1E1E)
+                    : Colors.white;
 
-    final Color switchActiveColor = hasLeak
-        ? const Color(0xFFD80B0B)
-        : !_isValveOpen
-            ? const Color(0xFFE6A817)
-            : const Color(0xFF2ECC71); // green when open & normal
+    final Color switchActiveColor = isOffline
+        ? Colors.grey
+        : hasLeak
+            ? const Color(0xFFD80B0B)
+            : !_isValveOpen
+                ? const Color(0xFFE6A817)
+                : const Color(0xFF1A8C4E);
+
+    final Color switchActiveTrack = switchActiveColor.withValues(alpha: 0.25);
+
+    final double maxFlow = widget.zone.inFlow > widget.zone.outFlow
+        ? widget.zone.inFlow
+        : widget.zone.outFlow;
 
     return Container(
       decoration: BoxDecoration(
@@ -111,32 +148,34 @@ class _LeakageCardState extends State<LeakageCard> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
 
-          // ── TOP ROW: fixed height so card never resizes ──
-          // SizedBox with fixed height = always same space
-          // whether label shows or not
+          // ── Fixed height top row ──
           SizedBox(
-            height: 20, // ← fixed height always!
+            height: 20,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
 
-                // Status label — same space always, text just changes
+                // Status label
                 Text(
-                  hasLeak
-                      ? 'Leak Detected'
-                      : !_isValveOpen
-                          ? 'Valve Closed'
-                          : '', // empty string = invisible but still takes space
+                  isOffline
+                      ? 'Device Offline'           // ⚫
+                      : hasLeak
+                          ? 'Leak Detected'         // 🔴
+                          : !_isValveOpen
+                              ? 'Valve Closed'      // 🟡
+                              : '',                 // Normal → empty
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: hasLeak
-                        ? const Color(0xFFD80B0B)
-                        : const Color(0xFFE6A817),
+                    color: isOffline
+                        ? Colors.grey
+                        : hasLeak
+                            ? const Color(0xFFD80B0B)
+                            : const Color(0xFFE6A817),
                   ),
                 ),
 
-                // Warning icon — Opacity 0 = invisible but still takes space
+                // Warning icon — only for leak
                 Opacity(
                   opacity: hasLeak ? 1.0 : 0.0,
                   child: const Icon(
@@ -150,68 +189,81 @@ class _LeakageCardState extends State<LeakageCard> {
             ),
           ),
 
-          // Zone name (centered)
+          // Zone name
           Text(
             widget.zone.name,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: borderColor,
+              color: isDark
+                  ? (isOffline ? Colors.grey : Colors.white)
+                  : borderColor,
             ),
           ),
 
+          // ── Last seen (only for offline devices) ──
+          if (isOffline)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Last seen: ${widget.zone.lastSeenText}',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey,
+                ),
+              ),
+            ),
+
           const SizedBox(height: 12),
 
-          // ── MAIN ROW: IN circle + Toggle + OUT circle ──
+          // ── IN circle + Switch + OUT circle ──
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
 
-              // ── LEFT: IN flow sensor ──
-              // maxFlow used to calculate relative arc fill
-              // 23.1 / 23.1 = 1.0 → full arc ✅
+              // IN sensor
               _FlowCircle(
-                value: widget.zone.inFlow,
-                maxFlow: widget.zone.inFlow > widget.zone.outFlow
-                    ? widget.zone.inFlow
-                    : widget.zone.outFlow,
-                label: 'IN',
-                color: borderColor,
+                value:    widget.zone.inFlow,
+                maxFlow:  maxFlow,
+                label:    'IN',
+                color:    isOffline ? Colors.grey : (isDark ? Colors.white70 : borderColor),
+                arcColor: isOffline ? Colors.grey : borderColor,
+                isDark:   isDark,
               ),
 
-              // ── MIDDLE: Valve toggle switch ──
-              Column(
-                children: [
-                  Transform.scale(
-                    scale: 1.3,
-                    child: Switch(
-                      value: _isValveOpen,
-                      onChanged: (value) {
-                        setState(() => _isValveOpen = value);
-                        // When backend ready:
-                        // widget.onValveToggle?.call(value);
-                        // Send API call to open/close ESP32 valve
-                      },
-                      activeColor: switchActiveColor,
-                      activeTrackColor: switchActiveColor.withValues(alpha: 0.3),
-                      inactiveThumbColor: const Color(0xFFE6A817),
-                      inactiveTrackColor:
-                          const Color(0xFFE6A817).withValues(alpha: 0.3),
-                    ),
-                  ),
-                ],
+              // Valve toggle switch
+              // ── DISABLED when offline ──
+              Transform.scale(
+                scale: 1.3,
+                child: Switch(
+                  value: _isValveOpen,
+                  // onChanged = null → disabled when offline ✅
+                  onChanged: isOffline
+                      ? null
+                      : (value) {
+                          setState(() => _isValveOpen = value);
+                          widget.onValveToggle?.call(value);
+                        },
+                  activeColor:        switchActiveColor,
+                  activeTrackColor:   switchActiveTrack,
+                  inactiveThumbColor: isOffline
+                      ? Colors.grey
+                      : const Color(0xFFE6A817),
+                  inactiveTrackColor: isOffline
+                      ? Colors.grey.withValues(alpha: 0.3)
+                      : const Color(0xFFE6A817).withValues(alpha: 0.3),
+                ),
               ),
 
-              // ── RIGHT: OUT flow sensor ──
-              // 15.7 / 23.1 = 0.68 → 68% arc ✅ smaller than IN
+              // OUT sensor
               _FlowCircle(
-                value: widget.zone.outFlow,
-                maxFlow: widget.zone.inFlow > widget.zone.outFlow
-                    ? widget.zone.inFlow
-                    : widget.zone.outFlow,
-                label: 'OUT',
-                color: borderColor,
+                value:    widget.zone.outFlow,
+                maxFlow:  maxFlow,
+                label:    'OUT',
+                color:    isOffline ? Colors.grey : (isDark ? Colors.white70 : borderColor),
+                arcColor: isOffline ? Colors.grey : borderColor,
+                isDark:   isDark,
               ),
 
             ],
@@ -223,35 +275,32 @@ class _LeakageCardState extends State<LeakageCard> {
   }
 }
 
-
-// ── FLOW CIRCLE ──────────────────────────────────────────────
-// Circular arc showing L/min value
-// Arc fill = value / maxFlow → bigger value = more filled arc
+// ── Flow Circle ───────────────────────────────────────────────
 class _FlowCircle extends StatelessWidget {
-  final double value;    // L/min this sensor
-  final double maxFlow;  // highest flow between IN and OUT (for scaling)
-  final String label;    // "IN" or "OUT"
-  final Color color;
+  final double value;
+  final double maxFlow;
+  final String label;
+  final Color  color;
+  final Color  arcColor;
+  final bool   isDark;
 
   const _FlowCircle({
     required this.value,
     required this.maxFlow,
     required this.label,
     required this.color,
+    required this.arcColor,
+    required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
-    // ── PROGRESS: relative to max flow ──
-    // IN  23.1 / 23.1 = 1.00 → full arc   ✅
-    // OUT 15.7 / 23.1 = 0.68 → 68% arc    ✅
     final double progress = maxFlow > 0
         ? (value / maxFlow).clamp(0.0, 1.0)
         : 0.0;
 
     return Column(
       children: [
-
         SizedBox(
           width: 85,
           height: 85,
@@ -259,27 +308,26 @@ class _FlowCircle extends StatelessWidget {
             alignment: Alignment.center,
             children: [
 
-              // Grey background arc (always full)
               CustomPaint(
                 size: const Size(85, 85),
                 painter: _ArcPainter(
                   progress: 1.0,
-                  color: const Color(0xFFE0E0E0),
+                  color: isDark
+                      ? const Color(0xFF333333)
+                      : const Color(0xFFE0E0E0),
                   strokeWidth: 7,
                 ),
               ),
 
-              // Colored arc — fills based on relative speed ✅
               CustomPaint(
                 size: const Size(85, 85),
                 painter: _ArcPainter(
                   progress: progress,
-                  color: color,
+                  color: arcColor,
                   strokeWidth: 7,
                 ),
               ),
 
-              // Value + unit inside
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -294,11 +342,7 @@ class _FlowCircle extends StatelessWidget {
                   ),
                   Text(
                     'L/min',
-                    style: TextStyle(
-                      fontSize: 9,
-                      color: color,
-                      fontWeight: FontWeight.w400,
-                    ),
+                    style: TextStyle(fontSize: 9, color: color),
                   ),
                 ],
               ),
@@ -306,9 +350,7 @@ class _FlowCircle extends StatelessWidget {
             ],
           ),
         ),
-
         const SizedBox(height: 4),
-
         Text(
           label,
           style: TextStyle(
@@ -317,17 +359,15 @@ class _FlowCircle extends StatelessWidget {
             color: color,
           ),
         ),
-
       ],
     );
   }
 }
 
-
-// ── ARC PAINTER ──────────────────────────────────────────────
+// ── Arc Painter ───────────────────────────────────────────────
 class _ArcPainter extends CustomPainter {
-  final double progress; // 0.0 to 1.0
-  final Color color;
+  final double progress;
+  final Color  color;
   final double strokeWidth;
 
   _ArcPainter({
@@ -338,29 +378,25 @@ class _ArcPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()
-      ..color = color
+    final paint = Paint()
+      ..color       = color
       ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final double centerX = size.width / 2;
-    final double centerY = size.height / 2;
-    final double radius  = (size.width - strokeWidth) / 2;
-
-    const double startAngle = 140 * math.pi / 180;
-    final double sweepAngle = 260 * math.pi / 180 * progress;
+      ..style       = PaintingStyle.stroke
+      ..strokeCap   = StrokeCap.round;
 
     canvas.drawArc(
-      Rect.fromCircle(center: Offset(centerX, centerY), radius: radius),
-      startAngle,
-      sweepAngle,
+      Rect.fromCircle(
+        center: Offset(size.width / 2, size.height / 2),
+        radius: (size.width - strokeWidth) / 2,
+      ),
+      140 * math.pi / 180,
+      260 * math.pi / 180 * progress,
       false,
       paint,
     );
   }
 
   @override
-  bool shouldRepaint(_ArcPainter oldDelegate) =>
-      oldDelegate.progress != progress || oldDelegate.color != color;
+  bool shouldRepaint(_ArcPainter old) =>
+      old.progress != progress || old.color != color;
 }
