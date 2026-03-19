@@ -385,21 +385,11 @@ class SetAutoLockSchema(BaseModel):
 
 # ─────────────────────────────────────────────
 # TERMS AND CONDITIONS SCHEMA
-# Validators removed from schema — validation is handled
-# in the route one by one so Flutter gets one clean error at a time
+# Only terms_of_service is required
 # ─────────────────────────────────────────────
 class TermsSchema(BaseModel):
-    # Required checkboxes — marked with * in Flutter UI
-    # Validation is done in terms_routes.py not here
-    # This gives one clean error at a time instead of all errors at once
+    # Only one required checkbox
     terms_of_service: bool
-    privacy_policy: bool
-    iot_data_collection: bool
-
-    # Optional checkboxes — user can leave these unchecked
-    # Default is False so Flutter does not have to send them if unchecked
-    cookie_policy: bool = False
-    tips_and_updates: bool = False
 
 
 # ─────────────────────────────────────────────
