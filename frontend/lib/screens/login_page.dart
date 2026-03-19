@@ -646,6 +646,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           const SizedBox(height: 6),
                           TextFormField(
+                            style: const TextStyle(color: Colors.black),
                             decoration: InputDecoration(
                               hintText: 'example@gmail.com',
                               hintStyle: TextStyle(
@@ -689,6 +690,7 @@ class _LoginPageState extends State<LoginPage> {
                           const SizedBox(height: 6),
                           TextFormField(
                             obscureText: true,
+                            style: const TextStyle(color: Colors.black),
                             decoration: InputDecoration(
                               hintText: 'Password',
                               hintStyle: TextStyle(
