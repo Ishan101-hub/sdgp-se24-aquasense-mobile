@@ -1,30 +1,31 @@
-# email_utils.py
-# AquaSense — Email utilities
-# Kulith's email_utils.py placed in server root so auth_router.py can import it.
-# Uses Gmail SMTP with TLS. Credentials loaded from config.settings.
-
 import smtplib
 import random
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from config import settings
+
+# ─────────────────────────────────────────────
+# FIXED IMPORT
+# Changed from: from config import settings  ← IoT backend config
+# Changed to:   from app.config import ...   ← our auth backend config
+# ─────────────────────────────────────────────
+from app.config import EMAIL_USER, EMAIL_HOST, EMAIL_PORT, EMAIL_PASS
 
 
 def generate_otp() -> str:
-    """Generates a random 6-digit OTP."""
+    # Generates a random 6-digit OTP
     return str(random.randint(100000, 999999))
 
 
 async def send_email(to_email: str, otp: str, email_type: str):
-    """
-    Sends an OTP email.
-    email_type: "verification" | "reset" | "2fa"
-    """
+    # Sends an OTP email
+    # email_type: "verification" | "reset" | "2fa"
+
     subject_map = {
         "verification": "AquaSense — Verify Your Email",
         "reset":        "AquaSense — Password Reset OTP",
         "2fa":          "AquaSense — Your 2FA Code",
     }
+
     body_map = {
         "verification": f"""
         <h2>Welcome to AquaSense</h2>
@@ -54,21 +55,25 @@ async def send_email(to_email: str, otp: str, email_type: str):
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"]    = settings.EMAIL_USER
+    msg["From"]    = EMAIL_USER
     msg["To"]      = to_email
     msg.attach(MIMEText(body, "html"))
 
-    with smtplib.SMTP(settings.EMAIL_HOST, settings.EMAIL_PORT) as server:
+    with smtplib.SMTP(EMAIL_HOST, EMAIL_PORT) as server:
         server.starttls()
-        server.login(settings.EMAIL_USER, settings.EMAIL_PASS)
-        server.sendmail(settings.EMAIL_USER, to_email, msg.as_string())
+        server.login(EMAIL_USER, EMAIL_PASS)
+        server.sendmail(EMAIL_USER, to_email, msg.as_string())
 
 
-async def send_login_alert_email(to_email: str, name: str, device_info: str, time: str):
-    """
-    Sends a login alert email when a new login is detected.
-    Only sent when user.login_alerts is True.
-    """
+async def send_login_alert_email(
+    to_email: str,
+    name: str,
+    device_info: str,
+    time: str
+):
+    # Sends a login alert email when a new login is detected
+    # Only sent when user has login_alerts_enabled set to True
+
     subject = "AquaSense — New Login Detected"
     body    = f"""
     <h2>New Login to Your AquaSense Account</h2>
@@ -84,11 +89,11 @@ async def send_login_alert_email(to_email: str, name: str, device_info: str, tim
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"]    = settings.EMAIL_USER
+    msg["From"]    = EMAIL_USER
     msg["To"]      = to_email
     msg.attach(MIMEText(body, "html"))
 
-    with smtplib.SMTP(settings.EMAIL_HOST, settings.EMAIL_PORT) as server:
+    with smtplib.SMTP(EMAIL_HOST, EMAIL_PORT) as server:
         server.starttls()
-        server.login(settings.EMAIL_USER, settings.EMAIL_PASS)
-        server.sendmail(settings.EMAIL_USER, to_email, msg.as_string())
+        server.login(EMAIL_USER, EMAIL_PASS)
+        server.sendmail(EMAIL_USER, to_email, msg.as_string())
