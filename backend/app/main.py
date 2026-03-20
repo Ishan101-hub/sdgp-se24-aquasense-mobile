@@ -63,6 +63,9 @@ app.include_router(district_router)
 # ─────────────────────────────────────────────
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    print(f"REAL ERROR: {exc}")
+    import traceback
+    traceback.print_exc()
     return JSONResponse(
         status_code=500,
         content={"detail": "An unexpected error occurred. Please try again."}
