@@ -1,5 +1,4 @@
 from datetime import datetime, timezone, timedelta
-from app.database import failed_attempts_collection
 
 # How many failed attempts before the account gets locked
 MAX_FAILED_ATTEMPTS = 5
@@ -8,28 +7,29 @@ MAX_FAILED_ATTEMPTS = 5
 LOCKOUT_DURATION_MINUTES = 15
 
 
-async def get_failed_attempts(email: str) -> dict:
-    # Find the failed attempts record for this email
-    record = await failed_attempts_collection.find_one({"email": email})
-    return record
-
-
 async def is_account_locked(email: str) -> tuple[bool, int]:
-    record = await get_failed_attempts(email)
+    from app.database import supabase
 
-    if not record:
+    # Find the failed attempts record for this email
+    result = supabase.table("failed_attempts").select("*").eq("email", email).execute()
+
+    if not result.data:
         # No failed attempts on record — account is not locked
         return False, 0
 
+    record = result.data[0]
     locked_until = record.get("locked_until")
 
     if locked_until:
-        if locked_until.tzinfo is None:
-            locked_until = locked_until.replace(tzinfo=timezone.utc)
-
-        if datetime.now(timezone.utc) < locked_until:
+        # Convert string to datetime
+        locked_until_dt = datetime.fromisoformat(
+            locked_until.replace("Z", "+00:00")
+        )
+        if datetime.now(timezone.utc) < locked_until_dt:
             # Account is still locked — calculate minutes remaining
-            remaining = (locked_until - datetime.now(timezone.utc)).seconds // 60
+            remaining = int(
+                (locked_until_dt - datetime.now(timezone.utc)).total_seconds() / 60
+            ) + 1
             return True, remaining
 
         # Lockout has expired — reset automatically
@@ -39,42 +39,43 @@ async def is_account_locked(email: str) -> tuple[bool, int]:
 
 
 async def record_failed_attempt(email: str):
-    record = await get_failed_attempts(email)
+    from app.database import supabase
 
-    if not record:
+    result = supabase.table("failed_attempts").select("*").eq("email", email).execute()
+
+    if not result.data:
         # First failed attempt — create a fresh record
-        await failed_attempts_collection.insert_one({
+        supabase.table("failed_attempts").insert({
             "email": email,
             "attempts": 1,
-            "last_attempt": datetime.now(timezone.utc),
+            "last_attempt": datetime.now(timezone.utc).isoformat(),
             "locked_until": None
-        })
+        }).execute()
         return
 
+    record = result.data[0]
     attempts = record.get("attempts", 0) + 1
 
     if attempts >= MAX_FAILED_ATTEMPTS:
         # Lock the account for 15 minutes
-        locked_until = datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
-        await failed_attempts_collection.update_one(
-            {"email": email},
-            {"$set": {
-                "attempts": attempts,
-                "last_attempt": datetime.now(timezone.utc),
-                "locked_until": locked_until
-            }}
-        )
+        locked_until = (
+            datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
+        ).isoformat()
+        supabase.table("failed_attempts").update({
+            "attempts": attempts,
+            "last_attempt": datetime.now(timezone.utc).isoformat(),
+            "locked_until": locked_until
+        }).eq("email", email).execute()
     else:
         # Just increment the counter
-        await failed_attempts_collection.update_one(
-            {"email": email},
-            {"$set": {
-                "attempts": attempts,
-                "last_attempt": datetime.now(timezone.utc)
-            }}
-        )
+        supabase.table("failed_attempts").update({
+            "attempts": attempts,
+            "last_attempt": datetime.now(timezone.utc).isoformat()
+        }).eq("email", email).execute()
 
 
 async def reset_failed_attempts(email: str):
+    from app.database import supabase
+
     # Called after successful login — wipes the failed attempts record
-    await failed_attempts_collection.delete_one({"email": email})
+    supabase.table("failed_attempts").delete().eq("email", email).execute()
