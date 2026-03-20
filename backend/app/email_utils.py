@@ -2,54 +2,61 @@ import smtplib
 import random
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from app.config import EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS
+
+# ─────────────────────────────────────────────
+# FIXED IMPORT
+# Changed from: from config import settings  ← IoT backend config
+# Changed to:   from app.config import ...   ← our auth backend config
+# ─────────────────────────────────────────────
+from app.config import EMAIL_USER, EMAIL_HOST, EMAIL_PORT, EMAIL_PASS
 
 
 def generate_otp() -> str:
-    # Generates a random 6 digit OTP
+    # Generates a random 6-digit OTP
     return str(random.randint(100000, 999999))
 
 
 async def send_email(to_email: str, otp: str, email_type: str):
-    # Sends different emails depending on the type
-    # email_type can be: verification, reset, 2fa
+    # Sends an OTP email
+    # email_type: "verification" | "reset" | "2fa"
+
     subject_map = {
         "verification": "AquaSense — Verify Your Email",
-        "reset": "AquaSense — Password Reset OTP",
-        "2fa": "AquaSense — Your 2FA Code"
+        "reset":        "AquaSense — Password Reset OTP",
+        "2fa":          "AquaSense — Your 2FA Code",
     }
 
     body_map = {
         "verification": f"""
         <h2>Welcome to AquaSense</h2>
         <p>Your email verification code is:</p>
-        <h1 style="color: #2196F3;">{otp}</h1>
+        <h1 style="color: #1A1A6E;">{otp}</h1>
         <p>This code expires in 10 minutes.</p>
         <p>If you did not create an account, please ignore this email.</p>
         """,
         "reset": f"""
         <h2>AquaSense Password Reset</h2>
         <p>Your password reset code is:</p>
-        <h1 style="color: #2196F3;">{otp}</h1>
+        <h1 style="color: #1A1A6E;">{otp}</h1>
         <p>This code expires in 10 minutes.</p>
         <p>If you did not request this, please ignore this email.</p>
         """,
         "2fa": f"""
-        <h2>AquaSense Two Factor Authentication</h2>
+        <h2>AquaSense Two-Factor Authentication</h2>
         <p>Your 2FA verification code is:</p>
-        <h1 style="color: #2196F3;">{otp}</h1>
+        <h1 style="color: #1A1A6E;">{otp}</h1>
         <p>This code expires in 10 minutes.</p>
         <p>If you did not request this, please secure your account immediately.</p>
-        """
+        """,
     }
 
     subject = subject_map.get(email_type, "AquaSense Notification")
-    body = body_map.get(email_type, otp)
+    body    = body_map.get(email_type, otp)
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"] = EMAIL_USER
-    msg["To"] = to_email
+    msg["From"]    = EMAIL_USER
+    msg["To"]      = to_email
     msg.attach(MIMEText(body, "html"))
 
     with smtplib.SMTP(EMAIL_HOST, EMAIL_PORT) as server:
@@ -58,11 +65,17 @@ async def send_email(to_email: str, otp: str, email_type: str):
         server.sendmail(EMAIL_USER, to_email, msg.as_string())
 
 
-async def send_login_alert_email(to_email: str, name: str, device_info: str, time: str):
+async def send_login_alert_email(
+    to_email: str,
+    name: str,
+    device_info: str,
+    time: str
+):
     # Sends a login alert email when a new login is detected
-    # Only sent if the user has login alerts enabled in their security settings
+    # Only sent when user has login_alerts_enabled set to True
+
     subject = "AquaSense — New Login Detected"
-    body = f"""
+    body    = f"""
     <h2>New Login to Your AquaSense Account</h2>
     <p>Hello {name},</p>
     <p>A new login was detected on your account.</p>
@@ -76,8 +89,8 @@ async def send_login_alert_email(to_email: str, name: str, device_info: str, tim
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"] = EMAIL_USER
-    msg["To"] = to_email
+    msg["From"]    = EMAIL_USER
+    msg["To"]      = to_email
     msg.attach(MIMEText(body, "html"))
 
     with smtplib.SMTP(EMAIL_HOST, EMAIL_PORT) as server:

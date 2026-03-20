@@ -1,24 +1,35 @@
 # config.py
-# AquaSense v3 — Application settings
-# All values are loaded from .env automatically by pydantic-settings.
+# AquaSense v3.1 — Application settings
+# Merges AquaSense IoT settings with Kulith's auth settings.
 
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
 
-    # ── Database ──────────────────────────────────────────────
+    # ── Database (Supabase PostgreSQL) ────────────────────────
     DATABASE_URL: str
 
     # ── JWT ───────────────────────────────────────────────────
-    JWT_SECRET:                   str
-    JWT_ALGORITHM:                str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES:  int = 30
+    JWT_SECRET:                  str
+    JWT_ALGORITHM:               str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
-    # ── MQTT ──────────────────────────────────────────────────
-    # Topic subscriptions and valve publish format are hardcoded
-    # in mqtt_service.py using the v3 hierarchical wildcard pattern.
-    # MQTT_TOPIC_READINGS and MQTT_TOPIC_VALVE from v2 are removed.
+    # ── Email — Gmail SMTP (Kulith's OTP emails) ──────────────
+    EMAIL_HOST: str = "smtp.gmail.com"
+    EMAIL_PORT: int = 587
+    EMAIL_USER: str = ""
+    EMAIL_PASS: str = ""
+
+    # ── Google OAuth (Kulith's Google login) ──────────────────
+    GOOGLE_CLIENT_ID:     str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI:  str = ""
+
+    # ── Fernet encryption (Kulith — phone/address at rest) ────
+    ENCRYPTION_KEY: str = ""
+
+    # ── MQTT (HiveMQ Cloud) ───────────────────────────────────
     MQTT_BROKER_HOST: str
     MQTT_BROKER_PORT: int = 8883
     MQTT_USERNAME:    str

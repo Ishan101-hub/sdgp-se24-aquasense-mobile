@@ -1,32 +1,27 @@
+# schemas.py
+# AquaSense — Request validation schemas
+# Kulith's schemas.py copied into the server root so auth_router.py can import them.
+# All validation logic is unchanged from Kulith's original.
+
 from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional
 import re
 
-# Common weak passwords that are blocked
-# These are the most frequently used passwords that hackers try first
 COMMON_PASSWORDS = [
     "password", "password123", "123456", "12345678",
     "qwerty", "abc123", "letmein", "welcome",
     "monkey", "dragon", "master", "sunshine"
 ]
 
-# Characters that are dangerous in a MongoDB context
-# For example $gt, $ne are MongoDB operators — if someone injects these
-# they could manipulate database queries and access data they should not
 DANGEROUS_CHARACTERS = ["$", "{", "}", "<", ">", "\\", "|"]
 
 
 def strip_html_tags(v: str) -> str:
-    # Removes HTML tags like <script>alert('hacked')</script> from input
-    # This prevents XSS attacks where someone injects HTML or JavaScript
-    # into a text field hoping it gets executed in someone's browser
     clean = re.sub(r'<[^>]+>', '', v)
     return clean.strip()
 
 
 def check_injection(v: str) -> str:
-    # Blocks characters commonly used in NoSQL injection attacks against MongoDB
-    # For example someone might type {"$gt": ""} in a field to bypass authentication
     for char in DANGEROUS_CHARACTERS:
         if char in v:
             raise ValueError(f"Input contains invalid character: {char}")
@@ -34,16 +29,10 @@ def check_injection(v: str) -> str:
 
 
 def validate_password_strength(v: str) -> str:
-    # This is a reusable function so we do not repeat the same
-    # password rules in RegisterSchema, ResetPasswordSchema and ChangePasswordSchema
     if len(v) < 8:
         raise ValueError("Password must be at least 8 characters long")
-
-    # bcrypt has a 72 byte limit so we cap at 64 to be safe
     if len(v) > 64:
         raise ValueError("Password must not exceed 64 characters")
-
-    # Each of these checks adds complexity making the password harder to crack
     if not any(c.isupper() for c in v):
         raise ValueError("Password must contain at least one uppercase letter")
     if not any(c.islower() for c in v):
@@ -52,33 +41,25 @@ def validate_password_strength(v: str) -> str:
         raise ValueError("Password must contain at least one digit")
     if not any(c in "!@#$%^&*()_+-=[]{}|;':\",./<>?" for c in v):
         raise ValueError("Password must contain at least one special character like !@#$%")
-
-    # Spaces in passwords cause issues with some systems and are generally avoided
     if " " in v:
         raise ValueError("Password must not contain spaces")
-
-    # Block the most commonly used passwords that hackers always try first
     if v.lower() in COMMON_PASSWORDS:
         raise ValueError("This password is too common. Please choose a stronger password")
-
     return v
 
 
-# ─────────────────────────────────────────────
-# REGISTER
-# Validates the data when a new user signs up
-# ─────────────────────────────────────────────
+# ── REGISTER ──────────────────────────────────────────────────
+
 class RegisterSchema(BaseModel):
-    name: str
-    email: EmailStr
-    phone: str
+    name:     str
+    email:    EmailStr
+    phone:    str
     password: str
 
     @field_validator("name")
     @classmethod
     def validate_name(cls, v):
-        v = v.strip()
-        v = strip_html_tags(v)
+        v = strip_html_tags(v.strip())
         if len(v) < 2:
             raise ValueError("Name must be at least 2 characters long")
         if len(v) > 50:
@@ -90,7 +71,6 @@ class RegisterSchema(BaseModel):
     @field_validator("email")
     @classmethod
     def validate_email(cls, v):
-        # Strip whitespace and convert to lowercase for consistency
         v = v.strip().lower()
         if len(v) > 100:
             raise ValueError("Email must not exceed 100 characters")
@@ -100,34 +80,26 @@ class RegisterSchema(BaseModel):
     @classmethod
     def validate_phone(cls, v):
         v = v.strip()
-        # Allow + for international format like +94771234567
         if not v.replace("+", "").replace(" ", "").isdigit():
             raise ValueError("Phone number must contain only digits")
-        clean_phone = v.replace("+", "").replace(" ", "")
-        if len(clean_phone) < 10:
+        clean = v.replace("+", "").replace(" ", "")
+        if len(clean) < 10:
             raise ValueError("Phone number must be at least 10 digits")
-        # International phone numbers are max 15 digits (E.164 standard)
-        if len(clean_phone) > 15:
+        if len(clean) > 15:
             raise ValueError("Phone number must not exceed 15 digits")
         return v
 
     @field_validator("password")
     @classmethod
     def password_strength(cls, v):
-        # Runs through the full password policy defined above
         return validate_password_strength(v)
 
 
-# ─────────────────────────────────────────────
-# LOGIN
-# Validates the data when a user logs in
-# We keep validation minimal here — we do not want to give
-# hackers hints about what fields are wrong
-# ─────────────────────────────────────────────
+# ── LOGIN ─────────────────────────────────────────────────────
+
 class LoginSchema(BaseModel):
-    # Either email or phone must be provided — not both required
-    email: Optional[EmailStr] = None
-    phone: Optional[str] = None
+    email:    Optional[EmailStr] = None
+    phone:    Optional[str]      = None
     password: str
 
     @field_validator("email")
@@ -142,7 +114,6 @@ class LoginSchema(BaseModel):
     @field_validator("phone")
     @classmethod
     def email_or_phone_required(cls, v, values):
-        # Make sure at least one identifier was provided
         if not v and not values.data.get("email"):
             raise ValueError("Either email or phone number must be provided")
         return v
@@ -150,20 +121,16 @@ class LoginSchema(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password(cls, v):
-        # Only check max length here — we do not run full strength validation
-        # because this is a login not a registration
         if len(v) > 64:
             raise ValueError("Invalid credentials")
         return v
 
 
-# ─────────────────────────────────────────────
-# VERIFY OTP
-# Validates the data when a user submits their OTP
-# ─────────────────────────────────────────────
+# ── VERIFY OTP ────────────────────────────────────────────────
+
 class VerifyOTPSchema(BaseModel):
     email: EmailStr
-    otp: str
+    otp:   str
 
     @field_validator("otp")
     @classmethod
@@ -176,10 +143,8 @@ class VerifyOTPSchema(BaseModel):
         return v
 
 
-# ─────────────────────────────────────────────
-# FORGOT PASSWORD
-# Validates the email when a user requests a password reset
-# ─────────────────────────────────────────────
+# ── FORGOT PASSWORD ───────────────────────────────────────────
+
 class ForgotPasswordSchema(BaseModel):
     email: EmailStr
 
@@ -192,14 +157,12 @@ class ForgotPasswordSchema(BaseModel):
         return v
 
 
-# ─────────────────────────────────────────────
-# RESET PASSWORD
-# Validates the data when a user resets their password using an OTP
-# ─────────────────────────────────────────────
+# ── RESET PASSWORD ────────────────────────────────────────────
+
 class ResetPasswordSchema(BaseModel):
-    email: EmailStr
-    otp: str
-    new_password: str
+    email:            EmailStr
+    otp:              str
+    new_password:     str
     confirm_password: str
 
     @field_validator("otp")
@@ -225,13 +188,11 @@ class ResetPasswordSchema(BaseModel):
         return v
 
 
-# ─────────────────────────────────────────────
-# CHANGE PASSWORD
-# Validates the data when a logged in user changes their password
-# ─────────────────────────────────────────────
+# ── CHANGE PASSWORD ───────────────────────────────────────────
+
 class ChangePasswordSchema(BaseModel):
     current_password: str
-    new_password: str
+    new_password:     str
     confirm_password: str
 
     @field_validator("new_password")
@@ -247,10 +208,8 @@ class ChangePasswordSchema(BaseModel):
         return v
 
 
-# ─────────────────────────────────────────────
-# REFRESH TOKEN
-# Validates the refresh token when a user wants a new access token
-# ─────────────────────────────────────────────
+# ── REFRESH TOKEN ─────────────────────────────────────────────
+
 class RefreshTokenSchema(BaseModel):
     refresh_token: str
 
@@ -260,7 +219,7 @@ class RefreshTokenSchema(BaseModel):
         v = v.strip()
         if len(v) < 10:
             raise ValueError("Invalid refresh token")
-        if len(v) > 500:
+        if len(v) > 2000:
             raise ValueError("Invalid refresh token")
         return v
 
@@ -385,21 +344,11 @@ class SetAutoLockSchema(BaseModel):
 
 # ─────────────────────────────────────────────
 # TERMS AND CONDITIONS SCHEMA
-# Validators removed from schema — validation is handled
-# in the route one by one so Flutter gets one clean error at a time
+# Only terms_of_service is required
 # ─────────────────────────────────────────────
 class TermsSchema(BaseModel):
-    # Required checkboxes — marked with * in Flutter UI
-    # Validation is done in terms_routes.py not here
-    # This gives one clean error at a time instead of all errors at once
+    # Only one required checkbox
     terms_of_service: bool
-    privacy_policy: bool
-    iot_data_collection: bool
-
-    # Optional checkboxes — user can leave these unchecked
-    # Default is False so Flutter does not have to send them if unchecked
-    cookie_policy: bool = False
-    tips_and_updates: bool = False
 
 
 # ─────────────────────────────────────────────

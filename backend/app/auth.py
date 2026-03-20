@@ -5,7 +5,6 @@ from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
 from app.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 
-# This tells FastAPI where to get the token from
 # Flutter sends the token in the Authorization header as Bearer token
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
@@ -16,19 +15,17 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def hash_password(password: str) -> str:
     # Converts plain text password to a secure hash
-    # Example: "TestPass123!" → "$2b$12$..."
     return pwd_context.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     # Checks if the plain text password matches the stored hash
-    # Returns True if they match, False if they do not
     return pwd_context.verify(plain_password, hashed_password)
 
 
 def create_access_token(data: dict) -> str:
-    # Creates a short lived token used to access protected routes
-    # Expires after ACCESS_TOKEN_EXPIRE_MINUTES (default 30 minutes)
+    # Creates a short lived access token
+    # Expires after ACCESS_TOKEN_EXPIRE_MINUTES
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire, "type": "access"})
@@ -36,7 +33,7 @@ def create_access_token(data: dict) -> str:
 
 
 def create_refresh_token(data: dict) -> str:
-    # Creates a long lived token used to get a new access token
+    # Creates a long lived refresh token
     # Expires after 7 days
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=7)
@@ -47,19 +44,18 @@ def create_refresh_token(data: dict) -> str:
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
     # This function runs before every protected route
     # It checks the token is valid and not blacklisted
-    from app.database import blacklisted_tokens_collection
+    from app.database import supabase
 
-    # First check if the token has been blacklisted
+    # Check if token has been blacklisted
     # This happens when the user logs out
-    # Even if the token has not expired yet it will be rejected
-    blacklisted = await blacklisted_tokens_collection.find_one({"token": token})
-    if blacklisted:
+    result = supabase.table("blacklisted_tokens").select("*").eq("token", token).execute()
+    if result.data:
         raise HTTPException(
             status_code=401,
             detail="Token has been invalidated. Please login again"
         )
 
-    # Now verify the token is valid and not expired
+    # Verify the token is valid and not expired
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
