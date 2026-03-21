@@ -53,7 +53,7 @@ def validate_password_strength(v: str) -> str:
 class RegisterSchema(BaseModel):
     name:     str
     email:    EmailStr
-    phone:    str
+    phone:    str #REQUIRED
     password: str
 
     @field_validator("name")

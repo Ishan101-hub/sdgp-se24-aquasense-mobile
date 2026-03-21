@@ -20,7 +20,7 @@ from sqlalchemy import select
 import asyncio
 
 from database import get_db
-from auth import get_current_user
+from auth import get_current_user as _iot_dep
 from models import User, Network, Zone, Device, Reading, ValveLog, Event
 from mqtt_service import invalidate_device_cache
 
@@ -47,7 +47,7 @@ class NetworkCreate(BaseModel):
 async def create_network(
     body:         NetworkCreate,
     db:           AsyncSession = Depends(get_db),
-    current_user: User         = Depends(get_current_user),
+    current_user: User         = Depends(_iot_dep),
 ):
     if not body.network_id.replace("_", "").replace("-", "").isalnum():
         raise HTTPException(
@@ -75,7 +75,7 @@ async def create_network(
 @router.get("/networks")
 async def list_networks(
     db:           AsyncSession = Depends(get_db),
-    current_user: User         = Depends(get_current_user),
+    current_user: User         = Depends(_iot_dep),
 ):
     result = await db.execute(select(Network).where(Network.owner_id == current_user.id))
     return [
@@ -100,7 +100,7 @@ async def create_zone(
     network_id:   int,
     body:         ZoneCreate,
     db:           AsyncSession = Depends(get_db),
-    current_user: User         = Depends(get_current_user),
+    current_user: User         = Depends(_iot_dep),
 ):
     net_result = await db.execute(
         select(Network).where(Network.id == network_id, Network.owner_id == current_user.id)
@@ -138,7 +138,7 @@ async def list_zones(
     network_id:   int,
     zone_type:    Optional[str] = None,
     db:           AsyncSession  = Depends(get_db),
-    current_user: User          = Depends(get_current_user),
+    current_user: User          = Depends(_iot_dep),
 ):
     net_result = await db.execute(
         select(Network).where(Network.id == network_id, Network.owner_id == current_user.id)
@@ -175,7 +175,7 @@ async def register_device(
     network_id:   int,
     body:         DeviceCreate,
     db:           AsyncSession = Depends(get_db),
-    current_user: User         = Depends(get_current_user),
+    current_user: User         = Depends(_iot_dep),
 ):
     if body.sensor_type not in ("inlet", "outlet"):
         raise HTTPException(status_code=400, detail="sensor_type must be 'inlet' or 'outlet'")
@@ -219,7 +219,7 @@ async def register_device(
 async def list_devices(
     network_id:   int,
     db:           AsyncSession = Depends(get_db),
-    current_user: User         = Depends(get_current_user),
+    current_user: User         = Depends(_iot_dep),
 ):
     net_result = await db.execute(
         select(Network).where(Network.id == network_id, Network.owner_id == current_user.id)
@@ -259,7 +259,7 @@ async def control_valve(
     device_id:    str,
     body:         ValveCommand,
     db:           AsyncSession = Depends(get_db),
-    current_user: User         = Depends(get_current_user),
+    current_user: User         = Depends(_iot_dep),
 ):
     if body.action not in ("open", "close"):
         raise HTTPException(status_code=400, detail="action must be 'open' or 'close'")
@@ -316,7 +316,7 @@ async def valve_logs(
     device_id:    str,
     limit:        int          = 50,
     db:           AsyncSession = Depends(get_db),
-    current_user: User         = Depends(get_current_user),
+    current_user: User         = Depends(_iot_dep),
 ):
     result = await db.execute(
         select(Device)
@@ -353,7 +353,7 @@ async def valve_logs(
 async def zone_flow_status(
     zone_id:      int,
     db:           AsyncSession = Depends(get_db),
-    current_user: User         = Depends(get_current_user),
+    current_user: User         = Depends(_iot_dep),
 ):
     zone_result = await db.execute(
         select(Zone)
@@ -402,7 +402,7 @@ async def zone_flow_status(
 async def network_zones_flow_status(
     network_id:   int,
     db:           AsyncSession = Depends(get_db),
-    current_user: User         = Depends(get_current_user),
+    current_user: User         = Depends(_iot_dep),
 ):
     """
     All zones flow status — powers the Leakages page zone list.
@@ -467,7 +467,7 @@ async def network_zones_flow_status(
 async def resolve_event(
     event_id:     int,
     db:           AsyncSession = Depends(get_db),
-    current_user: User         = Depends(get_current_user),
+    current_user: User         = Depends(_iot_dep),
 ):
     result = await db.execute(
         select(Event)

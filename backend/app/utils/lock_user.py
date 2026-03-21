@@ -1,81 +1,70 @@
+# app/utils/lock_user.py
+# AquaSense — Account lockout helpers
+# Kulith's lock_user.py ported from supabase-py → SQLAlchemy AsyncSession.
+
 from datetime import datetime, timezone, timedelta
+from sqlalchemy import select, delete
+from sqlalchemy.ext.asyncio import AsyncSession
 
-# How many failed attempts before the account gets locked
-MAX_FAILED_ATTEMPTS = 5
-
-# How long the account stays locked in minutes
+MAX_FAILED_ATTEMPTS    = 5
 LOCKOUT_DURATION_MINUTES = 15
 
 
-async def is_account_locked(email: str) -> tuple[bool, int]:
-    from app.database import supabase
+async def is_account_locked(identifier: str, db: AsyncSession) -> tuple[bool, int]:
+    """
+    Returns (is_locked, minutes_remaining).
+    Automatically clears an expired lockout.
+    """
+    from models import FailedAttempt
 
-    # Find the failed attempts record for this email
-    result = supabase.table("failed_attempts").select("*").eq("email", email).execute()
+    result = await db.execute(
+        select(FailedAttempt).where(FailedAttempt.identifier == identifier)
+    )
+    record = result.scalar_one_or_none()
 
-    if not result.data:
-        # No failed attempts on record — account is not locked
+    if not record:
         return False, 0
 
-    record = result.data[0]
-    locked_until = record.get("locked_until")
-
-    if locked_until:
-        # Convert string to datetime
-        locked_until_dt = datetime.fromisoformat(
-            locked_until.replace("Z", "+00:00")
-        )
-        if datetime.now(timezone.utc) < locked_until_dt:
-            # Account is still locked — calculate minutes remaining
+    if record.locked_until:
+        if datetime.now(timezone.utc) < record.locked_until:
             remaining = int(
-                (locked_until_dt - datetime.now(timezone.utc)).total_seconds() / 60
+                (record.locked_until - datetime.now(timezone.utc)).total_seconds() / 60
             ) + 1
             return True, remaining
 
-        # Lockout has expired — reset automatically
-        await reset_failed_attempts(email)
+        # Lockout expired — reset automatically
+        await reset_failed_attempts(identifier, db)
 
     return False, 0
 
 
-async def record_failed_attempt(email: str):
-    from app.database import supabase
+async def record_failed_attempt(identifier: str, db: AsyncSession) -> None:
+    """Increments the failed attempt counter. Locks after MAX_FAILED_ATTEMPTS."""
+    from models import FailedAttempt
 
-    result = supabase.table("failed_attempts").select("*").eq("email", email).execute()
+    result = await db.execute(
+        select(FailedAttempt).where(FailedAttempt.identifier == identifier)
+    )
+    record = result.scalar_one_or_none()
 
-    if not result.data:
-        # First failed attempt — create a fresh record
-        supabase.table("failed_attempts").insert({
-            "email": email,
-            "attempts": 1,
-            "last_attempt": datetime.now(timezone.utc).isoformat(),
-            "locked_until": None
-        }).execute()
-        return
-
-    record = result.data[0]
-    attempts = record.get("attempts", 0) + 1
-
-    if attempts >= MAX_FAILED_ATTEMPTS:
-        # Lock the account for 15 minutes
-        locked_until = (
-            datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
-        ).isoformat()
-        supabase.table("failed_attempts").update({
-            "attempts": attempts,
-            "last_attempt": datetime.now(timezone.utc).isoformat(),
-            "locked_until": locked_until
-        }).eq("email", email).execute()
+    if not record:
+        record = FailedAttempt(identifier=identifier, attempts=1)
+        db.add(record)
     else:
-        # Just increment the counter
-        supabase.table("failed_attempts").update({
-            "attempts": attempts,
-            "last_attempt": datetime.now(timezone.utc).isoformat()
-        }).eq("email", email).execute()
+        record.attempts += 1
+        if record.attempts >= MAX_FAILED_ATTEMPTS:
+            record.locked_until = (
+                datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
+            )
+
+    await db.commit()
 
 
-async def reset_failed_attempts(email: str):
-    from app.database import supabase
+async def reset_failed_attempts(identifier: str, db: AsyncSession) -> None:
+    """Clears lockout record after a successful login."""
+    from models import FailedAttempt
 
-    # Called after successful login — wipes the failed attempts record
-    supabase.table("failed_attempts").delete().eq("email", email).execute()
+    await db.execute(
+        delete(FailedAttempt).where(FailedAttempt.identifier == identifier)
+    )
+    await db.commit()

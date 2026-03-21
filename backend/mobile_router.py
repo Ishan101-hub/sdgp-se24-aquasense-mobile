@@ -27,7 +27,7 @@ from sqlalchemy import select, func, extract, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from auth import get_current_user
+from auth import get_current_user as _iot_dep
 from database import get_db
 from models import (
     User, Network, Zone, Device,
@@ -109,7 +109,7 @@ def _days_elapsed_in_month(year: int, month: int) -> int:
 async def zones_daily(
     network_id:   Optional[int] = Query(default=None),
     db:           AsyncSession  = Depends(get_db),
-    current_user: User          = Depends(get_current_user),
+    current_user: User          = Depends(_iot_dep),
 ):
     """
     Per-zone daily usage for the Flutter DailyConsumptionCard.
@@ -210,7 +210,7 @@ async def zones_daily(
 async def live_flowrate(
     network_id:   Optional[int] = Query(default=None),
     db:           AsyncSession  = Depends(get_db),
-    current_user: User          = Depends(get_current_user),
+    current_user: User          = Depends(_iot_dep),
 ):
     """
     Live flow rate for the WaterStatusCard water drop.
@@ -265,7 +265,7 @@ async def live_flowrate(
 async def dashboard_today(
     network_id:   Optional[int] = Query(default=None),
     db:           AsyncSession  = Depends(get_db),
-    current_user: User          = Depends(get_current_user),
+    current_user: User          = Depends(_iot_dep),
 ):
     """
     Today's total usage for the TodayCard.
@@ -355,7 +355,7 @@ async def dashboard_today(
 async def leakages(
     network_id:   Optional[int] = Query(default=None),
     db:           AsyncSession  = Depends(get_db),
-    current_user: User          = Depends(get_current_user),
+    current_user: User          = Depends(_iot_dep),
 ):
     """
     All zones with live IN/OUT flow and valve state for the Leakages screen.
@@ -457,7 +457,7 @@ class ValveCommandBody(BaseModel):
 async def mobile_valve_command(
     body:         ValveCommandBody,
     db:           AsyncSession = Depends(get_db),
-    current_user: User         = Depends(get_current_user),
+    current_user: User         = Depends(_iot_dep),
 ):
     """
     Send open/close command to all outlet devices in a zone.
@@ -561,7 +561,7 @@ async def monthly_report(
     month:        int           = Query(default=datetime.now(timezone.utc).month, ge=1, le=12),
     network_id:   Optional[int] = Query(default=None),
     db:           AsyncSession  = Depends(get_db),
-    current_user: User          = Depends(get_current_user),
+    current_user: User          = Depends(_iot_dep),
 ):
     """
     Monthly report for the Report screen year/month dropdown.
@@ -630,7 +630,7 @@ async def mobile_alerts(
     network_id:   Optional[int] = Query(default=None),
     limit:        int           = Query(default=50, le=200),
     db:           AsyncSession  = Depends(get_db),
-    current_user: User          = Depends(get_current_user),
+    current_user: User          = Depends(_iot_dep),
 ):
     """
     Leak alert list for the notification bell screen.
@@ -725,7 +725,7 @@ async def mobile_alerts(
 async def resolve_alert(
     alert_id:     int,
     db:           AsyncSession = Depends(get_db),
-    current_user: User         = Depends(get_current_user),
+    current_user: User         = Depends(_iot_dep),
 ):
     """
     Resolve a leak alert. Call this before POST /mobile/valve with action=open.

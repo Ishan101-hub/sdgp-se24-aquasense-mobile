@@ -1,9 +1,26 @@
-from fastapi import APIRouter, HTTPException, Depends
-from app.database import supabase
-from app.auth import get_current_user
-from app.schemas import UpdateProfileSchema
-from app.utils.encryption import encrypt, decrypt
+# app/routes/user_routes.py
+# AquaSense — User profile routes
+# Kulith's user_routes.py ported from supabase-py → SQLAlchemy.
+# All endpoint URLs, logic, and response shapes preserved exactly.
+#
+# Field mapping (supabase → SQLAlchemy User):
+#   password            → password_hash
+#   phone               → phone_encrypted  (stored encrypted, decrypted on read)
+#   address             → address_encrypted (stored encrypted, decrypted on read)
+#   two_factor_enabled  → two_fa_enabled
+#   login_alerts_enabled → login_alerts
+
 from datetime import datetime, timezone
+
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from auth import get_current_user
+from database import get_db
+from models import User
+from schemas import UpdateProfileSchema
+from app.utils.encryption import encrypt, decrypt
 
 router = APIRouter(prefix="/user", tags=["User"])
 
@@ -21,114 +38,110 @@ WATER_SOURCES = [
 # ─────────────────────────────────────────────
 # GET PROFILE
 # ─────────────────────────────────────────────
+
 @router.get("/profile")
-async def get_profile(current_user: str = Depends(get_current_user)):
-    result = supabase.table("users").select("*").eq("email", current_user).execute()
-    user = result.data[0] if result.data else None
-
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
+async def get_profile(
+    current_user = Depends(get_current_user),
+    db:           AsyncSession = Depends(get_db),
+):
     return {
-        "email": user["email"],
-        "name": user.get("name"),
-        # Phone is stored as plain text — return directly
-        "phone": user.get("phone"),
-        # Address is stored encrypted — decrypt before sending to Flutter
-        "address": decrypt(user["address"]) if user.get("address") else None,
-        "profile_picture": user.get("profile_picture"),
-        "auth_provider": user.get("auth_provider", "local"),
-        "is_verified": user.get("is_verified", False),
-        "created_at": user.get("created_at"),
-        # Security settings
-        "two_factor_enabled": user.get("two_factor_enabled", False),
-        "login_alerts_enabled": user.get("login_alerts_enabled", True),
-        "auto_lock_minutes": user.get("auto_lock_minutes", 30),
+        "email":         current_user.email,
+        "name":          current_user.name,
+        # Phone encrypted — decrypt before sending to Flutter
+        "phone":         decrypt(current_user.phone_encrypted)
+                         if current_user.phone_encrypted else None,
+        # Address encrypted — decrypt before sending to Flutter
+        "address":       decrypt(current_user.address_encrypted)
+                         if current_user.address_encrypted else None,
+        "profile_picture": current_user.profile_picture,
+        "auth_provider": current_user.auth_provider,
+        "is_verified":   current_user.is_verified,
+        "created_at":    current_user.created_at.isoformat() if current_user.created_at else None,
+        # Security settings — note the renamed fields
+        "two_factor_enabled":   current_user.two_fa_enabled,
+        "login_alerts_enabled": current_user.login_alerts,
+        "auto_lock_minutes":    current_user.auto_lock_minutes,
         # District
-        "district": user.get("district", None),
+        "district":      current_user.district,
         # Device info
-        "device_id": user.get("device_id", None),
-        "install_date": user.get("install_date", None),
+        "device_id":     current_user.device_id,
+        "install_date":  current_user.install_date.isoformat() if current_user.install_date else None,
         # Water info
-        "water_source": user.get("water_source", None),
-        "household_size": user.get("household_size", None),
+        "water_source":    current_user.water_source,
+        "household_size":  current_user.household_size,
     }
 
 
 # ─────────────────────────────────────────────
 # UPDATE PROFILE
 # ─────────────────────────────────────────────
+
 @router.put("/update-profile")
 async def update_profile(
-    data: UpdateProfileSchema,
-    current_user: str = Depends(get_current_user)
+    data:        UpdateProfileSchema,
+    current_user = Depends(get_current_user),
+    db:          AsyncSession = Depends(get_db),
 ):
-    result = supabase.table("users").select("*").eq("email", current_user).execute()
-    user = result.data[0] if result.data else None
-
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    update_data = {}
+    updated = False
 
     if data.name is not None:
-        update_data["name"] = data.name
+        current_user.name = data.name
+        updated = True
 
     if data.phone is not None:
-        # Phone stored as plain text — used for login searches
-        update_data["phone"] = data.phone
+        # Encrypt before storing
+        current_user.phone_encrypted = encrypt(data.phone)
+        updated = True
 
     if data.address is not None:
-        # Address encrypted before saving
-        update_data["address"] = encrypt(data.address)
+        # Encrypt before storing
+        current_user.address_encrypted = encrypt(data.address)
+        updated = True
 
     if data.profile_picture is not None:
-        update_data["profile_picture"] = data.profile_picture
+        current_user.profile_picture = data.profile_picture
+        updated = True
 
-    if not update_data:
+    if not updated:
         raise HTTPException(status_code=400, detail="No fields provided to update")
 
-    supabase.table("users").update(update_data).eq("email", current_user).execute()
-
+    await db.commit()
     return {"message": "Profile updated successfully"}
 
 
 # ─────────────────────────────────────────────
 # REGISTER DEVICE
 # ─────────────────────────────────────────────
+
 @router.post("/register-device")
 async def register_device(
-    data: dict,
-    current_user: str = Depends(get_current_user)
+    data:        dict,
+    current_user = Depends(get_current_user),
+    db:          AsyncSession = Depends(get_db),
 ):
-    result = supabase.table("users").select("*").eq("email", current_user).execute()
-    user = result.data[0] if result.data else None
-
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
     device_id = data.get("device_id")
     if not device_id:
         raise HTTPException(status_code=400, detail="Device ID is required")
 
-    update_data = {"device_id": device_id}
+    current_user.device_id = device_id
 
     # Only set install date once — never overwrite it
-    if not user.get("install_date"):
-        update_data["install_date"] = datetime.now(timezone.utc).isoformat()
+    if not current_user.install_date:
+        current_user.install_date = datetime.now(timezone.utc)
 
-    supabase.table("users").update(update_data).eq("email", current_user).execute()
+    await db.commit()
 
     return {
-        "message": "Device registered successfully",
-        "device_id": device_id,
-        "install_date": user.get("install_date")
+        "message":      "Device registered successfully",
+        "device_id":    device_id,
+        "install_date": current_user.install_date.isoformat() if current_user.install_date else None,
     }
 
 
 # ─────────────────────────────────────────────
 # GET WATER SOURCES
 # ─────────────────────────────────────────────
+
 @router.get("/water-sources")
 async def get_water_sources():
     return {"water_sources": WATER_SOURCES}
@@ -137,12 +150,12 @@ async def get_water_sources():
 # ─────────────────────────────────────────────
 # DELETE ACCOUNT
 # ─────────────────────────────────────────────
+
 @router.delete("/delete-account")
-async def delete_account(current_user: str = Depends(get_current_user)):
-    result = supabase.table("users").select("*").eq("email", current_user).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    supabase.table("users").delete().eq("email", current_user).execute()
-
+async def delete_account(
+    current_user = Depends(get_current_user),
+    db:          AsyncSession = Depends(get_db),
+):
+    await db.delete(current_user)
+    await db.commit()
     return {"message": "Account deleted successfully"}

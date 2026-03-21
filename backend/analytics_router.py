@@ -19,7 +19,7 @@ from sqlalchemy import select, func, extract, case
 from sqlalchemy.orm import joinedload
 
 from database import get_db
-from auth import get_current_user
+from auth import get_current_user as _iot_dep
 from models import User, Network, Zone, Device, Reading, DailySummary, Event
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -87,7 +87,7 @@ async def live_readings(
     device_id:    str,
     limit:        int          = Query(default=120, le=600),
     db:           AsyncSession = Depends(get_db),
-    current_user: User         = Depends(get_current_user),
+    current_user: User         = Depends(_iot_dep),
 ):
     await _resolve_device(device_id, current_user, db)
 
@@ -123,7 +123,7 @@ async def daily_usage(
     year:         int          = Query(default=_current_year),
     month:        int          = Query(default=_current_month, ge=1, le=12),
     db:           AsyncSession = Depends(get_db),
-    current_user: User         = Depends(get_current_user),
+    current_user: User         = Depends(_iot_dep),
 ):
     await _resolve_device(device_id, current_user, db)
 
@@ -164,7 +164,7 @@ async def monthly_usage(
     device_id:    str,
     year:         int          = Query(default=_current_year),
     db:           AsyncSession = Depends(get_db),
-    current_user: User         = Depends(get_current_user),
+    current_user: User         = Depends(_iot_dep),
 ):
     await _resolve_device(device_id, current_user, db)
 
@@ -211,7 +211,7 @@ async def leak_history(
     resolved:     Optional[bool] = Query(default=None),
     limit:        int             = Query(default=50, le=200),
     db:           AsyncSession    = Depends(get_db),
-    current_user: User            = Depends(get_current_user),
+    current_user: User            = Depends(_iot_dep),
 ):
     await _resolve_device(device_id, current_user, db)
 
@@ -259,7 +259,7 @@ async def all_zones_summary(
     month:        int           = Query(default=_current_month, ge=1, le=12),
     zone_type:    Optional[str] = Query(default=None),
     db:           AsyncSession  = Depends(get_db),
-    current_user: User          = Depends(get_current_user),
+    current_user: User          = Depends(_iot_dep),
 ):
     """
     Returns one usage card per zone instance for the Flutter dashboard.
@@ -394,7 +394,7 @@ async def zone_summary(
     year:         int          = Query(default=_current_year),
     month:        int          = Query(default=_current_month, ge=1, le=12),
     db:           AsyncSession = Depends(get_db),
-    current_user: User         = Depends(get_current_user),
+    current_user: User         = Depends(_iot_dep),
 ):
     zone = await _resolve_zone(zone_id, current_user, db)
 
@@ -466,7 +466,7 @@ async def network_summary(
     year:         int          = Query(default=_current_year),
     month:        int          = Query(default=_current_month, ge=1, le=12),
     db:           AsyncSession = Depends(get_db),
-    current_user: User         = Depends(get_current_user),
+    current_user: User         = Depends(_iot_dep),
 ):
     network = await _resolve_network(network_id, current_user, db)
 
@@ -550,7 +550,7 @@ async def zone_leak_history(
     resolved:     Optional[bool] = Query(default=None),
     limit:        int            = Query(default=50, le=200),
     db:           AsyncSession   = Depends(get_db),
-    current_user: User           = Depends(get_current_user),
+    current_user: User           = Depends(_iot_dep),
 ):
     zone_result = await db.execute(
         select(Zone)
@@ -608,7 +608,7 @@ async def zone_leak_history(
 async def dashboard_today(
     network_id:   Optional[int] = Query(default=None),
     db:           AsyncSession  = Depends(get_db),
-    current_user: User          = Depends(get_current_user),
+    current_user: User          = Depends(_iot_dep),
 ):
     today = datetime.now(timezone.utc).date()
 

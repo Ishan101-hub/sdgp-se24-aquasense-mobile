@@ -19,7 +19,6 @@ from sqlalchemy import select, update
 from database import AsyncSessionLocal
 from models import Device, Event, ValveLog, Zone, Network
 from config import settings
-
 logger = logging.getLogger("aquasense.leak")
 
 # Dedup: key = device_id → last event timestamp
