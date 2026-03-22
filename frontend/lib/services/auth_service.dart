@@ -1,10 +1,37 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://localhost:8000/auth';
+  // ── Platform-aware base URL ────────────────────────────
+  static String get baseUrl {
+    if (kIsWeb) return 'http://localhost:8000/auth';
+    return 'http://10.0.2.2:8000/auth';
+  }
+
+  static String get _apiBase {
+    if (kIsWeb) return 'http://localhost:8000';
+    return 'http://10.0.2.2:8000';
+  }
+
   static const _storage = FlutterSecureStorage();
+
+  // ── Safely parse FastAPI error detail ─────────────────
+  // FastAPI returns detail as a String on most errors,
+  // but as a List on 422 validation errors e.g.:
+  // [{"loc": ["body","confirm_password"], "msg": "field required"}]
+  // This helper handles both safely.
+  static String _parseError(dynamic detail, String fallback) {
+    if (detail == null) return fallback;
+    if (detail is String) return detail;
+    if (detail is List) {
+      return detail
+          .map((e) => e is Map ? (e['msg'] ?? e.toString()) : e.toString())
+          .join(', ');
+    }
+    return fallback;
+  }
 
   // ── Save / retrieve tokens ─────────────────────────────
   static Future<void> saveTokens(String access, String refresh) async {
@@ -38,14 +65,11 @@ class AuthService {
           if (phone != null && phone.isNotEmpty) 'phone': phone,
         }),
       );
-
       final data = jsonDecode(response.body);
-
       if (response.statusCode == 200) {
         return {'success': true, 'message': data['message']};
       }
-
-      return {'success': false, 'message': data['detail'] ?? 'Registration failed'};
+      return {'success': false, 'message': _parseError(data['detail'], 'Registration failed')};
     } catch (e) {
       return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
     }
@@ -62,14 +86,11 @@ class AuthService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email, 'otp': otp}),
       );
-
       final data = jsonDecode(response.body);
-
       if (response.statusCode == 200) {
         return {'success': true, 'message': data['message']};
       }
-
-      return {'success': false, 'message': data['detail'] ?? 'OTP verification failed'};
+      return {'success': false, 'message': _parseError(data['detail'], 'OTP verification failed')};
     } catch (e) {
       return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
     }
@@ -82,14 +103,11 @@ class AuthService {
         Uri.parse('$baseUrl/resend-otp?email=${Uri.encodeComponent(email)}'),
         headers: {'Content-Type': 'application/json'},
       );
-
       final data = jsonDecode(response.body);
-
       if (response.statusCode == 200) {
         return {'success': true, 'message': data['message']};
       }
-
-      return {'success': false, 'message': data['detail'] ?? 'Failed to resend OTP'};
+      return {'success': false, 'message': _parseError(data['detail'], 'Failed to resend OTP')};
     } catch (e) {
       return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
     }
@@ -106,9 +124,7 @@ class AuthService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email, 'password': password}),
       );
-
       final data = jsonDecode(response.body);
-
       if (response.statusCode == 200) {
         await saveTokens(data['access_token'], data['refresh_token']);
         return {
@@ -117,8 +133,7 @@ class AuthService {
           'message': data['message'] ?? '',
         };
       }
-
-      return {'success': false, 'message': data['detail'] ?? 'Login failed'};
+      return {'success': false, 'message': _parseError(data['detail'], 'Login failed')};
     } catch (e) {
       return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
     }
@@ -132,14 +147,11 @@ class AuthService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email}),
       );
-
       final data = jsonDecode(response.body);
-
       if (response.statusCode == 200) {
         return {'success': true, 'message': data['message']};
       }
-
-      return {'success': false, 'message': data['detail'] ?? 'Failed to send OTP'};
+      return {'success': false, 'message': _parseError(data['detail'], 'Failed to send OTP')};
     } catch (e) {
       return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
     }
@@ -156,19 +168,17 @@ class AuthService {
         Uri.parse('$baseUrl/reset-password'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'email': email,
-          'otp': otp,
-          'new_password': newPassword,
+          'email':            email,
+          'otp':              otp,
+          'new_password':     newPassword,
+          'confirm_password': newPassword, // ← required by ResetPasswordSchema
         }),
       );
-
       final data = jsonDecode(response.body);
-
       if (response.statusCode == 200) {
         return {'success': true, 'message': data['message']};
       }
-
-      return {'success': false, 'message': data['detail'] ?? 'Password reset failed'};
+      return {'success': false, 'message': _parseError(data['detail'], 'Password reset failed')};
     } catch (e) {
       return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
     }
@@ -198,7 +208,7 @@ class AuthService {
   static Future<http.Response> authGet(String endpoint) async {
     final token = await getAccessToken();
     return await http.get(
-      Uri.parse('http://localhost:8000$endpoint'),
+      Uri.parse('$_apiBase$endpoint'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -211,7 +221,7 @@ class AuthService {
       String endpoint, Map<String, dynamic> body) async {
     final token = await getAccessToken();
     return await http.post(
-      Uri.parse('http://localhost:8000$endpoint'),
+      Uri.parse('$_apiBase$endpoint'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
