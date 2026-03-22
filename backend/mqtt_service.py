@@ -1,23 +1,27 @@
 # mqtt_service.py
-# AquaSense v3 — Async MQTT service
+# AquaSense v3.2 — Async MQTT service
 #
-# Topic structure (finalized):
-#   aquasense/{network_id}/{zone_id}/{device_id}/{component}
+# Topic structure (v3.2):
+#   aquasense/{network_id}/{zone_id}/{device_id}/sensor/{location}/{type}
+#   aquasense/{network_id}/{zone_id}/{device_id}/valve/{type}
+#   aquasense/{network_id}/{zone_id}/{device_id}/leak/{type}
 #
 # Subscriptions:
-#   aquasense/+/+/+/outlet   — outlet sensor readings
-#   aquasense/+/+/+/events   — leak and valve events from devices
+#   aquasense/+/+/+/sensor/+/+   — inlet and outlet sensor readings
+#   aquasense/+/+/+/leak/+       — device-reported leak alerts
 #
 # Valve publish:
-#   aquasense/{network_id}/{zone_id}/{device_id}/valve
+#   aquasense/{network_id}/{zone_id}/{device_id}/valve/command
 #
-# Changes from v2:
-#   • _parse_topic() extracts network_id, zone_id, device_id, component
-#   • _validate_device() checks device exists AND belongs to the correct zone/network
-#   • Reading rows now include network_id, zone_id, sensor_type (denormalised)
-#   • publish_valve_command() uses full hierarchical topic
-#   • outbound_loop() receives (network_id, zone_id, device_id, action) tuples
-#   • Device.last_seen updated on every processed reading
+# Changes from v3.1:
+#   • parse_topic() updated for new 6-7 segment structure (category + location + type)
+#   • _dispatch() routes on category+location instead of component
+#   • _process_outlet_reading() and _process_inlet_reading() both called from sensor handler
+#   • _process_inlet_reading() added — stores inlet readings and triggers mismatch check
+#   • _process_event_message() now triggered by category == "leak", type == "alert"
+#   • _outbound_loop() topic updated: .../valve → .../valve/command
+#   • Subscriptions updated to match new wildcard patterns
+#   • Legacy 2-tuple and _validate_device_by_id() removed — all queues use 4-tuples
 
 import asyncio
 import json
@@ -31,25 +35,33 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from config import settings
 from database import AsyncSessionLocal
-from models import Device, Network, Zone, Reading, Event, ValveLog
-from leak_service import evaluate_reading, evaluate_flow_mismatch
+from models import Device, Network, Zone, Reading, Event, ValveLog, ValveState
+from leak_service import LeakDetectionService, get_leak_service
 
 logger = logging.getLogger("aquasense.mqtt")
 
 # ─── Batch write buffer ───────────────────────────────────────────────────────
-# Readings are accumulated here and flushed to PostgreSQL in bulk every N seconds
-# or when the buffer hits INSERT_BATCH_SIZE rows — whichever comes first.
 _reading_buffer: list[dict] = []
 _buffer_lock = asyncio.Lock()
 
-# ─── In-process device cache ──────────────────────────────────────────────────
-# Caches (network_id_str, zone_id_str) → Device ORM row to avoid a DB round-trip
-# on every single MQTT message. Invalidated when a new device is registered.
-_device_cache: dict[str, Optional[Device]] = {}
+# ─── In-process device cache (TTL = 60 seconds) ──────────────────────────────
+# Stores (Device | None, cached_at: datetime) per device_id.
+# None is cached too — avoids repeat DB hits for unknown devices.
+# TTL prevents stale entries when a device is disabled, moved, or deleted.
+_DEVICE_CACHE_TTL_SECONDS = 60
+_device_cache: dict[str, tuple[Optional[Device], datetime]] = {}
+
+# ─── Leak detection service — injected by main.py ────────────────────────────
+_leak_service: Optional[LeakDetectionService] = None
+
+
+def set_leak_service(svc: LeakDetectionService) -> None:
+    global _leak_service
+    _leak_service = svc
 
 
 def invalidate_device_cache(device_id: str) -> None:
-    """Called by device_router after registering or updating a device."""
+    """Called by device_router after registering, updating, or deleting a device."""
     _device_cache.pop(device_id, None)
 
 
@@ -57,31 +69,58 @@ def invalidate_device_cache(device_id: str) -> None:
 #  Topic parsing
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _parse_topic(topic: str) -> dict | None:
+def parse_topic(topic: str) -> dict | None:
     """
-    Parse: aquasense/{network_id}/{zone_id}/{device_id}/{component}
-    Returns None if the topic does not match the expected 5-segment structure.
+    Parse the new 6-7 segment topic structure.
 
-    Example:
-        "aquasense/building_a/kitchen_01/esp32_k1/outlet"
-        → {"network_id": "building_a", "zone_id": "kitchen_01",
-           "device_id": "esp32_k1", "component": "outlet"}
+    Sensor:  aquasense/{network}/{zone}/{device}/sensor/{location}/{type}
+             location = inlet | outlet
+             type     = flow_rate | total_L | heartbeat | live_flow
+
+    Valve:   aquasense/{network}/{zone}/{device}/valve/{type}
+             type     = command | status
+
+    Leak:    aquasense/{network}/{zone}/{device}/leak/{type}
+             type     = alert
+
+    Returns None for anything that does not match a known pattern.
     """
     parts = topic.split("/")
-    if len(parts) != 5 or parts[0] != "aquasense":
+
+    if len(parts) < 6 or parts[0] != "aquasense":
         logger.debug("Ignored non-AquaSense topic: %s", topic)
         return None
 
-    _, network_id, zone_id, device_id, component = parts
-    if not all([network_id, zone_id, device_id, component]):
+    network_id = parts[1]
+    zone_id    = parts[2]
+    device_id  = parts[3]
+    category   = parts[4]
+
+    if not all([network_id, zone_id, device_id, category]):
         return None
 
-    return {
-        "network_id": network_id,   # MQTT string slug
-        "zone_id":    zone_id,      # MQTT string slug
+    result = {
+        "network_id": network_id,
+        "zone_id":    zone_id,
         "device_id":  device_id,
-        "component":  component,    # "outlet" | "events" | "valve"
+        "category":   category,
     }
+
+    if category == "sensor" and len(parts) == 7:
+        result["location"] = parts[5]   # inlet | outlet
+        result["type"]     = parts[6]   # flow_rate | total_L | heartbeat | live_flow
+
+    elif category == "valve" and len(parts) == 6:
+        result["type"] = parts[5]       # command | status
+
+    elif category == "leak" and len(parts) == 6:
+        result["type"] = parts[5]       # alert
+
+    else:
+        logger.debug("Unrecognised topic pattern: %s", topic)
+        return None
+
+    return result
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -90,18 +129,38 @@ def _parse_topic(topic: str) -> dict | None:
 
 async def _validate_device(
     network_id: str,
-    zone_id: str,
-    device_id: str,
+    zone_id:    str,
+    device_id:  str,
+    expected_sensor_type: Optional[str] = None,
 ) -> Device | None:
     """
     Verify the device exists and belongs to the claimed network+zone.
-    Uses a short-lived in-process cache so hot paths (100 msg/s) don't
-    hit PostgreSQL on every message.
 
-    Returns the Device ORM object, or None if not found / mismatch.
+    TTL cache: entries expire after _DEVICE_CACHE_TTL_SECONDS (60s).
+    This ensures disabled, moved, or deleted devices are not served
+    from stale cache for more than one minute.
+
+    If expected_sensor_type is provided ("inlet" or "outlet"), the device's
+    sensor_type is validated against it. A mismatch is rejected so a device
+    cannot corrupt data by publishing on the wrong topic type.
     """
-    if device_id in _device_cache:
-        return _device_cache[device_id]
+    # Check TTL cache
+    cached = _device_cache.get(device_id)
+    if cached is not None:
+        device, cached_at = cached
+        age = (datetime.now(timezone.utc) - cached_at).total_seconds()
+        if age < _DEVICE_CACHE_TTL_SECONDS:
+            # Cache hit — still validate sensor_type even from cache
+            if device is not None and expected_sensor_type:
+                if device.sensor_type != expected_sensor_type:
+                    logger.warning(
+                        "Device type mismatch (cached): device=%s sensor_type=%s expected=%s",
+                        device_id, device.sensor_type, expected_sensor_type,
+                    )
+                    return None
+            return device
+        # Expired — fall through to DB
+        _device_cache.pop(device_id, None)
 
     async with AsyncSessionLocal() as db:
         result = await db.execute(
@@ -109,10 +168,10 @@ async def _validate_device(
             .join(Zone,    Device.zone_id    == Zone.id)
             .join(Network, Device.network_id == Network.id)
             .where(
-                Device.device_id    == device_id,
-                Zone.zone_id        == zone_id,
-                Network.network_id  == network_id,
-                Device.status       == "active",
+                Device.device_id   == device_id,
+                Zone.zone_id       == zone_id,
+                Network.network_id == network_id,
+                Device.status      == "active",
             )
         )
         device = result.scalar_one_or_none()
@@ -122,8 +181,20 @@ async def _validate_device(
             "Unknown or mismatched device: network=%s zone=%s device=%s",
             network_id, zone_id, device_id,
         )
+        # Cache the None to avoid hammering DB for repeated unknown device messages
+        _device_cache[device_id] = (None, datetime.now(timezone.utc))
+        return None
 
-    _device_cache[device_id] = device   # cache None too to avoid repeat DB hits
+    # Device type validation — reject if topic location doesn't match DB sensor_type
+    if expected_sensor_type and device.sensor_type != expected_sensor_type:
+        logger.warning(
+            "Device type mismatch: device=%s sensor_type=%s tried to publish on '%s' topic — rejected",
+            device_id, device.sensor_type, expected_sensor_type,
+        )
+        # Don't cache — let it re-check next time in case it was misconfigured temporarily
+        return None
+
+    _device_cache[device_id] = (device, datetime.now(timezone.utc))
     return device
 
 
@@ -165,37 +236,76 @@ async def periodic_flush() -> None:
 #  Message processors
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def _process_outlet_reading(parsed: dict, payload: dict) -> None:
+# ─── Per-device value accumulators ───────────────────────────────────────────
+# ESP32 publishes flow_rate and total_L on separate topics.
+# We accumulate both values per device and only write a reading row once
+# we have a complete pair for the same device within the same second.
+# Key: device_id → {"flow_rate": float | None, "total_volume": float | None, "ts": datetime}
+_outlet_accumulator: dict[str, dict] = {}
+_inlet_accumulator:  dict[str, dict] = {}
+_ACCUMULATOR_WINDOW_SECONDS = 2   # pair must arrive within this window
+
+
+async def _process_outlet_reading(parsed: dict, msg_type: str, value: float) -> None:
     """
-    Handle an outlet sensor reading:
-      1. Validate device exists and belongs to claimed network/zone
-      2. Buffer the reading row (with denormalised network_id, zone_id, sensor_type)
-      3. Update device.last_seen
-      4. Run backend-side leak evaluation
+    Handle a single outlet sensor topic from the ESP32.
+
+    ESP32 publishes flow and total on separate topics:
+      .../sensor/outlet/flow_rate  → plain float e.g. "23.10"
+      .../sensor/outlet/total_L    → plain float e.g. "1024.50"
+
+    We accumulate both per device. Once we have a complete pair (both values
+    arrived within _ACCUMULATOR_WINDOW_SECONDS), we write one reading row,
+    run leak evaluation, and run the mismatch check.
+
+    live_flow topics are accepted but not stored — they are read-only display
+    values for the Flutter WaterStatusCard and do not affect the DB.
     """
+    if msg_type == "live_flow":
+        return   # display-only — not stored
+
+    if msg_type not in ("flow_rate", "total_L"):
+        logger.debug("Unhandled outlet msg_type '%s'", msg_type)
+        return
+
     network_id = parsed["network_id"]
     zone_id    = parsed["zone_id"]
     device_id  = parsed["device_id"]
 
-    device = await _validate_device(network_id, zone_id, device_id)
+    device = await _validate_device(network_id, zone_id, device_id, expected_sensor_type="outlet")
     if device is None:
         return
 
-    try:
-        flow_rate    = float(payload["flow_rate"])
-        total_volume = float(payload["total_volume"])
-        valve_status = str(payload.get("valve_status", "open"))
-        timestamp    = datetime.fromisoformat(
-            payload["timestamp"].replace("Z", "+00:00")
-        )
-    except (KeyError, ValueError) as exc:
-        logger.warning("Malformed outlet payload device=%s: %s", device_id, exc)
+    now = datetime.now(timezone.utc)
+
+    # Initialise or reset accumulator if the previous window has expired
+    acc = _outlet_accumulator.get(device_id)
+    if acc is None or (now - acc["ts"]).total_seconds() > _ACCUMULATOR_WINDOW_SECONDS:
+        acc = {"flow_rate": None, "total_volume": None, "ts": now}
+        _outlet_accumulator[device_id] = acc
+
+    if msg_type == "flow_rate":
+        acc["flow_rate"] = value
+    elif msg_type == "total_L":
+        acc["total_volume"] = value
+
+    # Not a complete pair yet — wait for the other topic to arrive
+    if acc["flow_rate"] is None or acc["total_volume"] is None:
         return
+
+    # Complete pair — extract values and clear accumulator
+    flow_rate    = acc["flow_rate"]
+    total_volume = acc["total_volume"]
+    timestamp    = acc["ts"]
+    _outlet_accumulator.pop(device_id, None)
+
+    # valve_state comes from the DB (device record) — ESP32 doesn't send it
+    valve_status = device.valve_state or "open"
 
     reading_row = dict(
         device_id    = device_id,
-        network_id   = network_id,   # denormalised MQTT slug
-        zone_id      = zone_id,      # denormalised MQTT slug
+        network_id   = network_id,
+        zone_id      = zone_id,
         sensor_type  = "outlet",
         flow_rate    = flow_rate,
         total_volume = total_volume,
@@ -207,27 +317,15 @@ async def _process_outlet_reading(parsed: dict, payload: dict) -> None:
         _reading_buffer.append(reading_row)
         should_flush = len(_reading_buffer) >= settings.INSERT_BATCH_SIZE
 
-    # Update heartbeat outside the buffer lock — non-blocking fire-and-forget
     asyncio.create_task(_touch_device(device_id))
 
     if should_flush:
         await flush_buffer()
 
-    # Leak evaluation runs on every outlet reading (not batched)
-    await evaluate_reading(
-        device_id    = device_id,
-        network_id   = network_id,
-        zone_id      = zone_id,
-        flow_rate    = flow_rate,
-        total_volume = total_volume,
-        timestamp    = timestamp,
-    )
-
-    # Flow mismatch check: compare latest inlet vs this outlet reading
-    # Fetch the most recent inlet reading for the same zone to detect delta leaks.
-    asyncio.create_task(
-        _check_flow_mismatch(device, network_id, zone_id, device_id, flow_rate, timestamp)
-    )
+    # Notify leak service — sync valve state first, then update flow
+    if _leak_service:
+        await _leak_service.update_valve_state(device.zone_id, ValveState(valve_status))
+        await _leak_service.update_outlet_flow(device.zone_id, flow_rate)
 
     logger.debug(
         "OUTLET device=%s flow=%.2f vol=%.2f valve=%s",
@@ -235,64 +333,94 @@ async def _process_outlet_reading(parsed: dict, payload: dict) -> None:
     )
 
 
-async def _check_flow_mismatch(
-    device,
-    network_id:  str,
-    zone_id:     str,
-    device_id:   str,
-    outlet_flow: float,
-    timestamp,
-) -> None:
+async def _process_inlet_reading(parsed: dict, msg_type: str, value: float) -> None:
     """
-    Fetch the most recent inlet reading for the same zone and compare with
-    the outlet flow rate. Calls evaluate_flow_mismatch() if inlet data exists.
+    Handle a single inlet sensor topic from the ESP32.
 
-    This runs as a fire-and-forget task so it never blocks the MQTT message loop.
+    ESP32 publishes:
+      .../sensor/inlet/flow_rate  → plain float
+      .../sensor/inlet/total_L    → plain float (optional on some firmware)
+
+    Inlet readings are stored for flow mismatch checks triggered by the
+    next outlet reading from the same zone. No direct leak evaluation here.
     """
-    try:
-        async with AsyncSessionLocal() as db:
-            # Find the latest inlet reading in this zone (by zone integer PK)
-            inlet_result = await db.execute(
-                select(Reading.flow_rate)
-                .join(Device, Reading.device_id == Device.device_id)
-                .where(
-                    Device.zone_id      == device.zone_id,   # integer PK
-                    Reading.sensor_type == "inlet",
-                )
-                .order_by(Reading.timestamp.desc())
-                .limit(1)
-            )
-            inlet_row = inlet_result.one_or_none()
-            if inlet_row is None:
-                return   # No inlet sensor data — skip mismatch check
+    if msg_type == "live_flow":
+        return   # display-only
 
-            inlet_flow = float(inlet_row.flow_rate)
+    if msg_type not in ("flow_rate", "total_L"):
+        logger.debug("Unhandled inlet msg_type '%s'", msg_type)
+        return
 
-        await evaluate_flow_mismatch(
-            zone_pk          = device.zone_id,
-            network_id       = network_id,
-            zone_id          = zone_id,
-            inlet_flow       = inlet_flow,
-            outlet_flow      = outlet_flow,
-            outlet_device_id = device_id,
-            timestamp        = timestamp,
-        )
-    except Exception as exc:
-        logger.debug("Flow mismatch check failed for device=%s: %s", device_id, exc)
+    network_id = parsed["network_id"]
+    zone_id    = parsed["zone_id"]
+    device_id  = parsed["device_id"]
+
+    device = await _validate_device(network_id, zone_id, device_id, expected_sensor_type="inlet")
+    if device is None:
+        return
+
+    now = datetime.now(timezone.utc)
+
+    acc = _inlet_accumulator.get(device_id)
+    if acc is None or (now - acc["ts"]).total_seconds() > _ACCUMULATOR_WINDOW_SECONDS:
+        acc = {"flow_rate": None, "total_volume": None, "ts": now}
+        _inlet_accumulator[device_id] = acc
+
+    if msg_type == "flow_rate":
+        acc["flow_rate"] = value
+    elif msg_type == "total_L":
+        acc["total_volume"] = value
+
+    # Only need flow_rate to write an inlet row — total_L is optional for inlet
+    if acc["flow_rate"] is None:
+        return
+
+    flow_rate    = acc["flow_rate"]
+    total_volume = acc["total_volume"] or 0.0
+    timestamp    = acc["ts"]
+    _inlet_accumulator.pop(device_id, None)
+
+    reading_row = dict(
+        device_id    = device_id,
+        network_id   = network_id,
+        zone_id      = zone_id,
+        sensor_type  = "inlet",
+        flow_rate    = flow_rate,
+        total_volume = total_volume,
+        valve_status = None,
+        timestamp    = timestamp,
+    )
+
+    async with _buffer_lock:
+        _reading_buffer.append(reading_row)
+        should_flush = len(_reading_buffer) >= settings.INSERT_BATCH_SIZE
+
+    asyncio.create_task(_touch_device(device_id))
+
+    if should_flush:
+        await flush_buffer()
+
+    # Notify leak service — inlet flow update triggers leak evaluation
+    if _leak_service:
+        await _leak_service.update_inlet_flow(device.zone_id, flow_rate)
+
+    logger.debug("INLET device=%s flow=%.2f", device_id, flow_rate)
 
 
 async def _process_event_message(parsed: dict, payload: dict) -> None:
     """
-    Handle an event message published by the device on the /events component.
-    Stores leak_detected / valve_opened / valve_closed events in the events table.
+    Handle a leak alert published by the device on .../leak/alert.
+    Stores the event in the events table and optionally auto-closes the valve.
 
-    Expected payload:
+    ESP32 payload (what the device actually sends):
     {
-        "event_type":  "leak_detected",
-        "severity":    "high",
-        "description": "Inlet flow 23L/min, outlet 8L/min — delta 15L/min",
-        "timestamp":   "2026-02-26T14:00:00Z"
+        "status":       "LEAK_DETECTED",   ← uppercase string
+        "valve":        "CLOSED",          ← current valve state from device
+        "inlet_flow":   23.1,              ← L/min
+        "outlet_flow":  8.0               ← L/min
     }
+
+    We normalise this into our internal format before storing.
     """
     network_id = parsed["network_id"]
     zone_id    = parsed["zone_id"]
@@ -303,15 +431,35 @@ async def _process_event_message(parsed: dict, payload: dict) -> None:
         return
 
     try:
-        event_type  = str(payload["event_type"])
-        severity    = str(payload.get("severity", "medium"))
-        description = str(payload.get("description", ""))
-        timestamp   = datetime.fromisoformat(
-            payload.get("timestamp", datetime.now(timezone.utc).isoformat())
-            .replace("Z", "+00:00")
+        # ── Normalise ESP32 payload ───────────────────────────────────────
+        status      = str(payload.get("status", "")).upper()
+        inlet_flow  = float(payload.get("inlet_flow",  0.0))
+        outlet_flow = float(payload.get("outlet_flow", 0.0))
+        delta       = inlet_flow - outlet_flow
+
+        # Map ESP32 status string → internal event_type
+        STATUS_MAP = {
+            "LEAK_DETECTED": "leak_detected",
+            "FLOW_MISMATCH": "flow_mismatch",
+        }
+        event_type = STATUS_MAP.get(status, "leak_detected")
+
+        description = (
+            f"Device reported {status}: "
+            f"inlet {inlet_flow:.2f} L/min, outlet {outlet_flow:.2f} L/min "
+            f"(delta {delta:.2f} L/min)."
         )
-    except (KeyError, ValueError) as exc:
-        logger.warning("Malformed event payload device=%s: %s", device_id, exc)
+
+        # Timestamp — ESP32 may or may not include one; fall back to server time
+        raw_ts    = payload.get("timestamp")
+        timestamp = (
+            datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
+            if raw_ts
+            else datetime.now(timezone.utc)
+        )
+
+    except (TypeError, ValueError) as exc:
+        logger.warning("Malformed leak alert payload device=%s: %s", device_id, exc)
         return
 
     async with AsyncSessionLocal() as db:
@@ -330,23 +478,22 @@ async def _process_event_message(parsed: dict, payload: dict) -> None:
                 .limit(1)
             )
             if recent.scalar_one_or_none():
-                return   # duplicate — skip
+                return
 
         event = Event(
             device_id   = device_id,
             network_id  = device.network_id,
             zone_id     = device.zone_id,
             event_type  = event_type,
-            severity    = severity,
             description = description,
             timestamp   = timestamp,
         )
         db.add(event)
 
-        # Auto-close valve in DB state for high-severity leaks
+        # Auto-close on high delta when valve is open
         if (
             event_type == "leak_detected"
-            and severity == "high"
+            and delta >= settings.LEAK_SEVERITY_HIGH
             and getattr(settings, "AUTO_CLOSE_VALVE_ON_HIGH", False)
             and device.valve_state == "open"
         ):
@@ -364,7 +511,7 @@ async def _process_event_message(parsed: dict, payload: dict) -> None:
             logger.warning("AUTO-CLOSE valve for device=%s", device_id)
 
         await db.commit()
-    logger.info("EVENT device=%s type=%s severity=%s", device_id, event_type, severity)
+    logger.info("EVENT device=%s type=%s", device_id, event_type)
 
 
 async def _touch_device(device_id: str) -> None:
@@ -386,25 +533,81 @@ async def _touch_device(device_id: str) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def _dispatch(topic: str, raw_payload: bytes) -> None:
-    """Route an incoming MQTT message to the correct handler."""
-    parsed = _parse_topic(topic)
+    """
+    Route an incoming MQTT message to the correct handler.
+
+    ESP32 publishes sensor values as plain floats on individual topics
+    (e.g. "23.10"), not as JSON objects. Leak alerts are JSON objects.
+    We decode per category+type rather than always json.loads().
+    """
+    parsed = parse_topic(topic)
     if parsed is None:
         return
 
-    try:
-        payload = json.loads(raw_payload.decode("utf-8", errors="replace"))
-    except json.JSONDecodeError:
-        logger.warning("Non-JSON payload on %s: %s", topic, raw_payload[:120])
-        return
+    category  = parsed["category"]
+    msg_type  = parsed.get("type", "")
+    location  = parsed.get("location", "")
+    raw_text  = raw_payload.decode("utf-8", errors="replace").strip()
 
-    component = parsed["component"]
+    # ── Sensor messages — ESP32 publishes a plain float value ────────────
+    if category == "sensor":
 
-    if component == "outlet":
-        await _process_outlet_reading(parsed, payload)
-    elif component == "events":
-        await _process_event_message(parsed, payload)
+        # Heartbeat — no value needed, just touch last_seen and exit
+        if msg_type == "heartbeat":
+            asyncio.create_task(_touch_device(parsed["device_id"]))
+            # Also notify leak service so outlet-alive check stays current
+            if _leak_service:
+                device = await _validate_device(
+                    parsed["network_id"], parsed["zone_id"], parsed["device_id"],
+                    expected_sensor_type="outlet",
+                )
+                if device:
+                    asyncio.create_task(
+                        _leak_service.update_outlet_heartbeat(device.zone_id)
+                    )
+            logger.debug("HEARTBEAT device=%s", parsed["device_id"])
+            return
+
+        # For all other sensor types, the payload is a plain float string
+        try:
+            value = float(raw_text)
+        except ValueError:
+            logger.warning(
+                "Non-numeric sensor payload on %s: %r", topic, raw_text[:60]
+            )
+            return
+
+        if location == "outlet":
+            await _process_outlet_reading(parsed, msg_type, value)
+        elif location == "inlet":
+            await _process_inlet_reading(parsed, msg_type, value)
+        else:
+            logger.debug("Unknown sensor location '%s' on topic %s", location, topic)
+
+    # ── Leak alert — ESP32 publishes a JSON object ────────────────────────
+    elif category == "leak":
+        if msg_type == "alert":
+            try:
+                payload = json.loads(raw_text)
+            except json.JSONDecodeError:
+                logger.warning("Non-JSON leak payload on %s: %r", topic, raw_text[:120])
+                return
+            await _process_event_message(parsed, payload)
+        else:
+            logger.debug("Unhandled leak type '%s' on topic %s", msg_type, topic)
+
+    # ── Valve status — acknowledgement from device, log only ─────────────
+    elif category == "valve":
+        if msg_type == "status":
+            logger.info(
+                "VALVE STATUS from device=%s payload=%r",
+                parsed["device_id"], raw_text,
+            )
+        else:
+            logger.debug("Unhandled valve type '%s' on topic %s", msg_type, topic)
+
     else:
-        logger.debug("Unhandled component '%s' on topic %s", component, topic)
+        logger.debug("Unhandled category '%s' on topic %s", category, topic)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -415,28 +618,20 @@ async def _outbound_loop(client: aiomqtt.Client, publish_queue: asyncio.Queue) -
     """
     Drain the publish_queue and send valve commands over MQTT.
     Queue items are 4-tuples: (network_id, zone_id, device_id, action)
-    Topic: aquasense/{network_id}/{zone_id}/{device_id}/valve
+
+    Topic: aquasense/{network_id}/{zone_id}/{device_id}/valve/command
     """
     while True:
         item = await publish_queue.get()
 
-        # Support both old (device_id, action) and new (network_id, zone_id, device_id, action)
-        if len(item) == 4:
-            network_id, zone_id, device_id, action = item
-        elif len(item) == 2:
-            # Legacy fallback — look up network/zone from DB
-            device_id, action = item
-            device = await _validate_device_by_id(device_id)
-            if device is None:
-                continue
-            network_id = device.zone.network.network_id
-            zone_id    = device.zone.zone_id
-        else:
-            logger.error("Invalid publish_queue item: %s", item)
+        if len(item) != 4:
+            logger.error("Invalid publish_queue item (expected 4-tuple): %s", item)
             continue
 
-        topic   = f"aquasense/{network_id}/{zone_id}/{device_id}/valve"
+        network_id, zone_id, device_id, action = item
+        topic   = f"aquasense/{network_id}/{zone_id}/{device_id}/valve/command"
         message = json.dumps({"valve": action})
+
         try:
             await client.publish(topic, message, qos=1)
             logger.info("VALVE CMD → %s action=%s", topic, action)
@@ -444,57 +639,44 @@ async def _outbound_loop(client: aiomqtt.Client, publish_queue: asyncio.Queue) -
             logger.error("Failed to publish valve command: %s", exc)
 
 
-async def _validate_device_by_id(device_id: str) -> Device | None:
-    """Fallback lookup when only device_id is known (legacy support)."""
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(
-            select(Device)
-            .where(Device.device_id == device_id)
-            .options()   # add joinedload(Device.zone) if needed
-        )
-        return result.scalar_one_or_none()
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 #  MQTT listener entry point
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def start_mqtt_listener(publish_queue: asyncio.Queue) -> None:
-    """
-    Connect to HiveMQ Cloud over TLS and subscribe to:
-        aquasense/+/+/+/outlet   — all outlet readings from all devices
-        aquasense/+/+/+/events   — all device-reported events
-
-    Auto-reconnects on disconnect with 5s back-off.
-    """
     logger.info(
         "Connecting to HiveMQ at %s:%d",
-        settings.MQTT_BROKER_HOST, settings.MQTT_BROKER_PORT,
+        settings.MQTT_BROKER_HOST,
+        settings.MQTT_BROKER_PORT,
     )
 
-    while True:   # auto-reconnect loop
+    while True:
         try:
             async with aiomqtt.Client(
-                hostname   = settings.MQTT_BROKER_HOST,
-                port       = settings.MQTT_BROKER_PORT,
-                identifier = settings.MQTT_CLIENT_ID,
-                username   = settings.MQTT_USERNAME,
-                password   = settings.MQTT_PASSWORD,
-                tls_params = aiomqtt.TLSParameters(),
+                hostname=settings.MQTT_BROKER_HOST,
+                port=settings.MQTT_BROKER_PORT,
+                identifier=settings.MQTT_CLIENT_ID,
+                username=settings.MQTT_USERNAME,
+                password=settings.MQTT_PASSWORD,
+                tls_params=aiomqtt.TLSParameters(),
+                keepalive=60,
             ) as client:
 
-                # Subscribe with wildcards — matches ALL networks/zones/devices
-                await client.subscribe("aquasense/+/+/+/outlet", qos=1)
-                await client.subscribe("aquasense/+/+/+/events", qos=1)
-                logger.info("✅ MQTT connected — subscribed to outlet + events topics")
+                async with client.unfiltered_messages() as messages:
+                    await client.subscribe("aquasense/+/+/+/sensor/+/+", qos=1)
+                    await client.subscribe("aquasense/+/+/+/leak/+", qos=1)
 
-                # Outbound valve commands run concurrently
-                asyncio.create_task(_outbound_loop(client, publish_queue))
-
-                async for message in client.messages:
-                    asyncio.create_task(
-                        _dispatch(str(message.topic), message.payload)
+                    logger.info(
+                        "✅ MQTT connected — subscribed to sensor (inlet+outlet) + leak topics"
                     )
+
+                    # Start outbound publisher loop
+                    asyncio.create_task(_outbound_loop(client, publish_queue))
+
+                    async for message in messages:
+                        asyncio.create_task(
+                            _dispatch(str(message.topic), message.payload)
+                        )
 
         except aiomqtt.MqttError as exc:
             logger.error("MQTT disconnected: %s — retrying in 5s", exc)

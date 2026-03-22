@@ -9,6 +9,15 @@
 #   • control_valve now publishes 4-tuple (not 2-tuple) to use hierarchical topic
 #   • zone_flow_status includes zone_type and floor in response
 #   • network_zones_flow_status ordered by zone_type, zone_id
+#
+# Fix (v3.1.1):
+#   • network_zones_flow_status() — eliminated N*2 per-zone DB queries.
+#     Now uses 3 bulk queries (zones, latest inlet readings, latest outlet
+#     readings) and processes everything in Python memory. This is correct
+#     for any number of zones.
+#   • zone_flow_status() and network_zones_flow_status() — leak threshold
+#     now reads from leak_service.FLOW_MISMATCH_THRESHOLD_LPM instead of
+#     the hardcoded literal 0.1.
 
 from datetime import datetime, timezone
 from typing import Optional
@@ -16,13 +25,14 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, text
 import asyncio
 
 from database import get_db
 from auth import get_current_user as _iot_dep
 from models import User, Network, Zone, Device, Reading, ValveLog, Event
 from mqtt_service import invalidate_device_cache
+from leak_service import FLOW_MISMATCH_THRESHOLD_LPM   # ← FIX: use shared threshold constant
 
 router = APIRouter(tags=["devices"])
 
@@ -230,17 +240,18 @@ async def list_devices(
     result = await db.execute(
         select(Device)
         .join(Zone, Device.zone_id == Zone.id)
-        .where(Device.network_id == network_id)
-        .order_by(Zone.zone_id, Device.device_id)
+        .where(Zone.network_id == network_id)
+        .order_by(Device.device_id)
     )
     return [
         {
+            "id":           d.id,
             "device_id":    d.device_id,
-            "subline_name": d.subline_name,
+            "zone_id":      d.zone_id,
             "sensor_type":  d.sensor_type,
-            "status":       d.status,
+            "subline_name": d.subline_name,
             "valve_state":  d.valve_state,
-            "last_seen":    d.last_seen.isoformat() if d.last_seen else None,
+            "status":       d.status,
         }
         for d in result.scalars()
     ]
@@ -298,7 +309,6 @@ async def control_valve(
         network_id  = device.network_id,
         zone_id     = device.zone_id,
         event_type  = f"valve_{body.action}d",
-        severity    = "low",
         description = f"Valve manually {body.action}d by user {current_user.id}.",
     ))
     await db.commit()
@@ -383,14 +393,16 @@ async def zone_flow_status(
     in_flow     = float(inlet_row.flow_rate)  if inlet_row  else 0.0
     out_flow    = float(outlet_row.flow_rate) if outlet_row else 0.0
     valve_state = outlet_row.valve_state      if outlet_row else "unknown"
-    leak        = (in_flow - out_flow) >= 0.1 and valve_state == "open"
+
+    # FIX: use the shared threshold constant — was hardcoded 0.1
+    leak = (in_flow - out_flow) >= FLOW_MISMATCH_THRESHOLD_LPM and valve_state == "open"
 
     return {
         "zone_id":     zone_id,
         "zone_slug":   zone.zone_id,
         "zone_name":   zone.zone_name,
-        "zone_type":   zone.zone_type,    # ← NEW
-        "floor":       zone.floor,         # ← NEW
+        "zone_type":   zone.zone_type,
+        "floor":       zone.floor,
         "inFlow":      round(in_flow,  4),
         "outFlow":     round(out_flow, 4),
         "valve_state": valve_state,
@@ -407,6 +419,16 @@ async def network_zones_flow_status(
     """
     All zones flow status — powers the Leakages page zone list.
     Ordered by zone_type then zone_id so Flutter renders consistent card order.
+
+    FIX (v3.1.1): Replaced N*2 per-zone DB queries with 3 bulk queries.
+    Previous implementation ran 2 queries per zone inside a for-loop, which
+    caused high DB load and slow response times as the number of zones grew.
+
+    New approach:
+      Query 1 — load all zones for the network (same as before)
+      Query 2 — latest inlet reading per zone (one query, DISTINCT ON zone_id)
+      Query 3 — latest outlet reading + valve_state per zone (one query)
+      All join logic and leak flag computed in Python memory.
     """
     net_result = await db.execute(
         select(Network).where(Network.id == network_id, Network.owner_id == current_user.id)
@@ -414,42 +436,99 @@ async def network_zones_flow_status(
     if not net_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Network not found")
 
+    # ── Query 1: all zones ────────────────────────────────────────────────
     zones_result = await db.execute(
         select(Zone)
         .where(Zone.network_id == network_id)
-        .order_by(Zone.zone_type, Zone.zone_id)    # ← consistent order
+        .order_by(Zone.zone_type, Zone.zone_id)
     )
     zones = zones_result.scalars().all()
+    if not zones:
+        return []
 
+    zone_ids = [z.id for z in zones]
+
+    # ── Query 2: latest inlet reading per zone ────────────────────────────
+    # Uses a subquery to get the max timestamp per zone_id/sensor_type combo,
+    # then joins back to readings to pull the flow_rate for that row.
+    inlet_sub = (
+        select(
+            Device.zone_id,
+            func.max(Reading.timestamp).label("latest_ts"),
+        )
+        .join(Reading, Reading.device_id == Device.device_id)
+        .where(
+            Device.zone_id.in_(zone_ids),
+            Reading.sensor_type == "inlet",
+        )
+        .group_by(Device.zone_id)
+        .subquery()
+    )
+    inlet_result = await db.execute(
+        select(Device.zone_id, Reading.flow_rate)
+        .join(Reading, Reading.device_id == Device.device_id)
+        .join(
+            inlet_sub,
+            (inlet_sub.c.zone_id  == Device.zone_id) &
+            (inlet_sub.c.latest_ts == Reading.timestamp),
+        )
+        .where(Reading.sensor_type == "inlet")
+    )
+    # Keep only the first match per zone (timestamp ties are extremely rare)
+    inlet_by_zone: dict[int, float] = {}
+    for row in inlet_result.all():
+        if row.zone_id not in inlet_by_zone:
+            inlet_by_zone[row.zone_id] = float(row.flow_rate)
+
+    # ── Query 3: latest outlet reading + valve state per zone ─────────────
+    outlet_sub = (
+        select(
+            Device.zone_id,
+            func.max(Reading.timestamp).label("latest_ts"),
+        )
+        .join(Reading, Reading.device_id == Device.device_id)
+        .where(
+            Device.zone_id.in_(zone_ids),
+            Reading.sensor_type == "outlet",
+        )
+        .group_by(Device.zone_id)
+        .subquery()
+    )
+    outlet_result = await db.execute(
+        select(Device.zone_id, Reading.flow_rate, Device.valve_state)
+        .join(Reading, Reading.device_id == Device.device_id)
+        .join(
+            outlet_sub,
+            (outlet_sub.c.zone_id   == Device.zone_id) &
+            (outlet_sub.c.latest_ts == Reading.timestamp),
+        )
+        .where(Reading.sensor_type == "outlet")
+    )
+    outlet_by_zone: dict[int, dict] = {}
+    for row in outlet_result.all():
+        if row.zone_id not in outlet_by_zone:
+            outlet_by_zone[row.zone_id] = {
+                "flow_rate":   float(row.flow_rate),
+                "valve_state": row.valve_state,
+            }
+
+    # ── Build response in Python — no more per-zone queries ──────────────
     output = []
     for zone in zones:
-        inlet_result = await db.execute(
-            select(Reading.flow_rate)
-            .join(Device, Reading.device_id == Device.device_id)
-            .where(Device.zone_id == zone.id, Reading.sensor_type == "inlet")
-            .order_by(Reading.timestamp.desc())
-            .limit(1)
-        )
-        outlet_result = await db.execute(
-            select(Reading.flow_rate, Device.valve_state)
-            .join(Device, Reading.device_id == Device.device_id)
-            .where(Device.zone_id == zone.id, Reading.sensor_type == "outlet")
-            .order_by(Reading.timestamp.desc())
-            .limit(1)
-        )
-        inlet_row   = inlet_result.one_or_none()
-        outlet_row  = outlet_result.one_or_none()
-        in_flow     = float(inlet_row.flow_rate)  if inlet_row  else 0.0
-        out_flow    = float(outlet_row.flow_rate) if outlet_row else 0.0
-        valve_state = outlet_row.valve_state      if outlet_row else "unknown"
-        leak        = (in_flow - out_flow) >= 0.1 and valve_state == "open"
+        in_flow     = inlet_by_zone.get(zone.id, 0.0)
+        outlet_data = outlet_by_zone.get(zone.id, {})
+        out_flow    = outlet_data.get("flow_rate",   0.0)
+        valve_state = outlet_data.get("valve_state", "unknown")
+
+        # FIX: use shared threshold constant — was hardcoded 0.1
+        leak = (in_flow - out_flow) >= FLOW_MISMATCH_THRESHOLD_LPM and valve_state == "open"
 
         output.append({
             "zone_id":     zone.id,
             "zone_slug":   zone.zone_id,
             "zone_name":   zone.zone_name,
-            "zone_type":   zone.zone_type,    # ← NEW
-            "floor":       zone.floor,         # ← NEW
+            "zone_type":   zone.zone_type,
+            "floor":       zone.floor,
             "inFlow":      round(in_flow,  4),
             "outFlow":     round(out_flow, 4),
             "valve_state": valve_state,
@@ -481,4 +560,13 @@ async def resolve_event(
     event.resolved    = True
     event.resolved_at = datetime.now(timezone.utc)
     await db.commit()
+
+    # Clear in-memory leak state so counter resets for this zone
+    from leak_service import get_leak_service
+    svc = get_leak_service()
+    if svc and event.zone_id:
+        await svc.clear_leak(event.zone_id)
+        if event.event_type == "valve_failure":
+            await svc.clear_valve_failure(event.zone_id)
+
     return {"detail": "Event resolved", "event_id": event_id}

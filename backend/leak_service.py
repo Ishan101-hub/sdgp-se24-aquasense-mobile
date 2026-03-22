@@ -1,224 +1,406 @@
-# leak_service.py
-# AquaSense v3 — Leak detection
-#
-# Changes from v2:
-#   • evaluate_reading() receives network_id, zone_id for Event creation
-#   • Event gains zone_id FK
-#   • publish_queue item is now a 4-tuple (network_id, zone_id, device_id, action)
-#
-# New in v3.1:
-#   • evaluate_flow_mismatch() — backend inlet/outlet delta check
-#     Creates a "flow_mismatch" event when inlet_flow - outlet_flow >= threshold.
-#     Called from mqtt_service after pairing the latest inlet+outlet readings
-#     for a zone when either sensor publishes a new reading.
+"""
+AquaSense Leak Detection Service
+
+CRITICAL: This logic MUST match the ESP32 inlet device exactly.
+
+ESP32 Leak Detection Algorithm:
+1. Check outlet device is alive (heartbeat < 5 sec)
+2. Check valve is currently open
+3. Check (inlet_flow - outlet_flow) > 0.8 L/min
+4. Count consecutive seconds above threshold
+5. If count >= 3: leak confirmed
+6. Close valve, create alert, publish MQTT
+
+Server implements identical logic as BACKUP detection.
+The inlet ESP32 is the primary safety controller.
+The server is the monitoring and backup controller.
+"""
 
 import logging
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Dict, Optional, Callable, Awaitable
 
-from sqlalchemy import select, update
-from database import AsyncSessionLocal
-from models import Device, Event, ValveLog, Zone, Network
-from config import settings
+from config import FLOW_MISMATCH_THRESHOLD_LPM, LEAK_CONFIRM_COUNT, HEARTBEAT_TIMEOUT_SEC
+from models import ValveState, EventType
+
 logger = logging.getLogger("aquasense.leak")
 
-# Dedup: key = device_id → last event timestamp
-_last_leak_event: dict[str, datetime] = {}
-
-# Dedup for flow_mismatch: key = zone_id (integer PK) → last event timestamp
-_last_mismatch_event: dict[int, datetime] = {}
-
-DEDUP_WINDOW_SECONDS = 60
-
-# Flow mismatch threshold: inlet - outlet delta that indicates a leak
-FLOW_MISMATCH_THRESHOLD_LPM: float = 2.0   # configurable; lower than LEAK_FLOW_THRESHOLD
-
-# publish_queue is injected from main.py via set_publish_queue()
-_publish_queue = None
+# Minimum inlet flow that counts as "water is flowing" when valve is closed.
+# Anything below this is considered sensor noise and ignored.
+VALVE_FAILURE_MIN_FLOW_LPM: float = 0.5
 
 
-def set_publish_queue(q) -> None:
-    global _publish_queue
-    _publish_queue = q
+# ─────────────────────────────────────────────────────────────────────────────
+#  Zone runtime state
+# ─────────────────────────────────────────────────────────────────────────────
 
-
-def classify_severity(flow_rate: float) -> str:
-    if flow_rate >= settings.LEAK_SEVERITY_HIGH:
-        return "high"
-    elif flow_rate >= settings.LEAK_SEVERITY_MEDIUM:
-        return "medium"
-    return "low"
-
-
-def classify_mismatch_severity(delta: float) -> str:
-    """Severity based on inlet-outlet delta."""
-    if delta >= settings.LEAK_SEVERITY_HIGH:
-        return "high"
-    elif delta >= settings.LEAK_SEVERITY_MEDIUM:
-        return "medium"
-    return "low"
-
-
-async def evaluate_reading(
-    device_id:    str,
-    network_id:   str,    # MQTT string slug
-    zone_id:      str,    # MQTT string slug
-    flow_rate:    float,
-    total_volume: float,
-    timestamp:    datetime,
-) -> None:
+@dataclass
+class ZoneState:
     """
-    Evaluate a single outlet reading for absolute flow leak conditions.
-    Triggers when flow_rate exceeds LEAK_FLOW_THRESHOLD_LPM.
-    Creates a 'leak_detected' Event and optionally publishes a valve close command.
+    Runtime state for a single zone's leak detection.
+    Tracks the same state variables as the ESP32 inlet device.
     """
-    if flow_rate <= settings.LEAK_FLOW_THRESHOLD_LPM:
-        return   # Normal reading
+    zone_id: int
 
-    # Dedup check
-    last = _last_leak_event.get(device_id)
-    if last and (timestamp - last).total_seconds() < DEDUP_WINDOW_SECONDS:
-        return
+    inlet_flow_lpm:  float = 0.0
+    outlet_flow_lpm: float = 0.0
+    inlet_timestamp:  Optional[datetime] = None
+    outlet_timestamp: Optional[datetime] = None
 
-    severity = classify_severity(flow_rate)
-    _last_leak_event[device_id] = timestamp
+    # Heartbeat tracking — matches ESP32: lastHeartbeatMillis
+    last_outlet_heartbeat: Optional[datetime] = None
 
-    async with AsyncSessionLocal() as db:
-        # Load device with zone/network for FK columns
-        result = await db.execute(
-            select(Device)
-            .join(Zone,    Device.zone_id    == Zone.id)
-            .join(Network, Device.network_id == Network.id)
-            .where(Device.device_id == device_id)
+    # Valve state — kept in sync with Device.valve_state in DB
+    valve_state: ValveState = ValveState.UNKNOWN
+
+    # Leak confirmation counter — matches ESP32: leakConfirmCounter
+    flow_mismatch_counter: int = 0
+
+    is_leak_active:   bool = False
+    leak_detected_at: Optional[datetime] = None
+
+    # Valve failure tracking — flow detected while valve is closed
+    is_valve_failure_active:   bool = False
+    valve_failure_detected_at: Optional[datetime] = None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Module-level singleton — created by main.py, used by routers
+# ─────────────────────────────────────────────────────────────────────────────
+
+_leak_service_instance: Optional["LeakDetectionService"] = None
+
+
+def get_leak_service() -> Optional["LeakDetectionService"]:
+    """Return the module-level instance. Used by routers that need to clear leak state."""
+    return _leak_service_instance
+
+
+def set_leak_service(svc: "LeakDetectionService") -> None:
+    global _leak_service_instance
+    _leak_service_instance = svc
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  LeakDetectionService
+# ─────────────────────────────────────────────────────────────────────────────
+
+class LeakDetectionService:
+    """
+    Server-side leak detection that mirrors ESP32 inlet logic exactly.
+
+    DB writes and MQTT publishes are handled via injected callbacks so this
+    class stays pure and testable.
+    """
+
+    def __init__(
+        self,
+        on_leak_detected: Optional[Callable[[int, float, float], Awaitable[None]]] = None,
+        on_valve_command: Optional[Callable[[int, str], Awaitable[None]]] = None,
+        on_event_created: Optional[Callable[[int, EventType, str, dict], Awaitable[None]]] = None,
+    ):
+        self._zone_states: Dict[int, ZoneState] = {}
+        self._on_leak_detected = on_leak_detected
+        self._on_valve_command = on_valve_command
+        self._on_event_created = on_event_created
+
+        # MUST MATCH ESP32
+        self.threshold_lpm         = FLOW_MISMATCH_THRESHOLD_LPM
+        self.confirm_count         = LEAK_CONFIRM_COUNT
+        self.heartbeat_timeout_sec = HEARTBEAT_TIMEOUT_SEC
+
+        logger.info(
+            "LeakDetectionService ready — threshold=%.1f L/min  confirm=%d  heartbeat=%.0fs",
+            self.threshold_lpm, self.confirm_count, self.heartbeat_timeout_sec,
         )
-        device = result.scalar_one_or_none()
-        if not device:
-            return
 
-        event = Event(
-            device_id   = device_id,
-            network_id  = device.network_id,   # integer FK
-            zone_id     = device.zone_id,       # integer FK
-            event_type  = "leak_detected",
-            severity    = severity,
-            description = (
-                f"Abnormal flow: {flow_rate:.2f} L/min "
-                f"(threshold: {settings.LEAK_FLOW_THRESHOLD_LPM} L/min). "
-                f"Severity: {severity}."
-            ),
-        )
-        db.add(event)
-        logger.warning(
-            "LEAK | device=%s | network=%s | zone=%s | flow=%.2f | severity=%s",
-            device_id, network_id, zone_id, flow_rate, severity,
-        )
+    def _get_zone_state(self, zone_id: int) -> ZoneState:
+        if zone_id not in self._zone_states:
+            self._zone_states[zone_id] = ZoneState(zone_id=zone_id)
+        return self._zone_states[zone_id]
 
-        # Auto-close on high severity
-        if (
-            severity == "high"
-            and settings.AUTO_CLOSE_VALVE_ON_HIGH
-            and device.valve_state == "open"
-        ):
-            await db.execute(
-                update(Device)
-                .where(Device.device_id == device_id)
-                .values(valve_state="closed")
+    # ── Input handlers — called by mqtt_service ───────────────────────────────
+
+    async def update_inlet_flow(self, zone_id: int, flow_lpm: float) -> None:
+        """Update inlet flow and run leak evaluation. Called on every inlet reading."""
+        state = self._get_zone_state(zone_id)
+        state.inlet_flow_lpm  = flow_lpm
+        state.inlet_timestamp = datetime.utcnow()
+        logger.debug("Zone %d: inlet_flow = %.2f L/min", zone_id, flow_lpm)
+        await self._evaluate_leak_condition(zone_id)
+        await self._evaluate_valve_failure(zone_id)
+
+    async def update_outlet_flow(self, zone_id: int, flow_lpm: float) -> None:
+        """Update outlet flow. Called on every outlet reading."""
+        state = self._get_zone_state(zone_id)
+        state.outlet_flow_lpm  = flow_lpm
+        state.outlet_timestamp = datetime.utcnow()
+        logger.debug("Zone %d: outlet_flow = %.2f L/min", zone_id, flow_lpm)
+
+    async def update_outlet_heartbeat(self, zone_id: int) -> None:
+        """
+        Record outlet device is alive. Called on every heartbeat message.
+        Matches ESP32: lastHeartbeatMillis = millis();
+        """
+        state = self._get_zone_state(zone_id)
+        state.last_outlet_heartbeat = datetime.utcnow()
+        logger.debug("Zone %d: outlet heartbeat", zone_id)
+
+    async def update_valve_state(self, zone_id: int, valve_state: ValveState) -> None:
+        """Sync valve state from DB/device. Resets counter on any state change."""
+        state = self._get_zone_state(zone_id)
+        if state.valve_state != valve_state:
+            logger.info(
+                "Zone %d: valve %s → %s",
+                zone_id, state.valve_state.value, valve_state.value,
             )
-            db.add(ValveLog(
-                device_id    = device_id,
-                commanded_by = None,
-                action       = "close",
-                source       = "auto_leak",
-            ))
-            logger.warning("AUTO-CLOSE valve for device=%s", device_id)
+            state.valve_state           = valve_state
+            state.flow_mismatch_counter = 0   # reset on valve change
+            # If valve just opened, clear any active valve failure — flow is now expected
+            if valve_state == ValveState.OPEN:
+                state.is_valve_failure_active = False
 
-            if _publish_queue:
-                # 4-tuple: (network_id_slug, zone_id_slug, device_id, action)
-                await _publish_queue.put((network_id, zone_id, device_id, "close"))
+    # ── Core detection — MATCHES ESP32 EXACTLY ───────────────────────────────
 
-        await db.commit()
+    async def _evaluate_leak_condition(self, zone_id: int) -> None:
+        """
+        Mirror of ESP32 checkLeakCondition() with server-side additions:
 
+        ```cpp
+        bool outletAlive = (millis() - lastHeartbeatMillis) < HEARTBEAT_TIMEOUT_MS;
+        if (!outletAlive) { leakConfirmCounter = 0; return; }
+        if (valveState != VALVE_OPEN) { leakConfirmCounter = 0; return; }
+        float delta = inletFlow - outletFlow;
+        if (delta > FLOW_DIFF_THRESHOLD) { leakConfirmCounter++; }
+        else { leakConfirmCounter = 0; }
+        if (leakConfirmCounter >= LEAK_CONFIRM_THRESHOLD) { onLeakDetected(); }
+        ```
 
-async def evaluate_flow_mismatch(
-    zone_pk:          int,    # Zone.id (integer PK)
-    network_id:       str,    # MQTT string slug (for logging / valve publish)
-    zone_id:          str,    # MQTT string slug (for logging / valve publish)
-    inlet_flow:       float,
-    outlet_flow:      float,
-    outlet_device_id: str,
-    timestamp:        datetime,
-) -> None:
-    """
-    Compare inlet vs outlet flow rates for a zone and create a 'flow_mismatch'
-    event when the delta exceeds FLOW_MISMATCH_THRESHOLD_LPM.
+        Server addition (not in ESP32 — network latency means readings can arrive
+        out of sync): timestamp alignment check between inlet and outlet.
+        If the two readings are more than 2 seconds apart the delta is stale
+        and could produce a false leak, so the counter is reset.
+        """
+        state = self._get_zone_state(zone_id)
 
-    Called from mqtt_service._process_outlet_reading() after fetching the most
-    recent inlet reading for the same zone.
-
-    Only fires when the outlet valve is open (if it's closed, delta is expected).
-    Deduplicates per zone within DEDUP_WINDOW_SECONDS.
-    """
-    delta = inlet_flow - outlet_flow
-    if delta < FLOW_MISMATCH_THRESHOLD_LPM:
-        return   # Delta within acceptable range
-
-    # Dedup check (zone-level, not device-level)
-    last = _last_mismatch_event.get(zone_pk)
-    if last and (timestamp - last).total_seconds() < DEDUP_WINDOW_SECONDS:
-        return
-
-    severity = classify_mismatch_severity(delta)
-    _last_mismatch_event[zone_pk] = timestamp
-
-    async with AsyncSessionLocal() as db:
-        # Load the outlet device to get FK IDs and valve state
-        result = await db.execute(
-            select(Device).where(Device.device_id == outlet_device_id)
-        )
-        device = result.scalar_one_or_none()
-        if not device:
+        # STEP 1 — outlet alive?
+        if not self._is_outlet_alive(state):
+            if state.flow_mismatch_counter > 0:
+                logger.debug("Zone %d: outlet offline — resetting counter", zone_id)
+            state.flow_mismatch_counter = 0
             return
 
-        # Only flag mismatch when outlet valve is open — if closed, delta is normal
-        if device.valve_state != "open":
+        # STEP 2 — valve open?
+        if state.valve_state != ValveState.OPEN:
+            if state.flow_mismatch_counter > 0:
+                logger.debug("Zone %d: valve not open — resetting counter", zone_id)
+            state.flow_mismatch_counter = 0
             return
 
-        event = Event(
-            device_id   = outlet_device_id,
-            network_id  = device.network_id,
-            zone_id     = device.zone_id,
-            event_type  = "flow_mismatch",
-            severity    = severity,
-            description = (
-                f"Inlet {inlet_flow:.2f} L/min vs outlet {outlet_flow:.2f} L/min "
-                f"— delta {delta:.2f} L/min exceeds threshold "
-                f"{FLOW_MISMATCH_THRESHOLD_LPM} L/min. Severity: {severity}."
-            ),
-        )
-        db.add(event)
-        logger.warning(
-            "FLOW MISMATCH | zone_pk=%d | zone=%s | inlet=%.2f | outlet=%.2f | delta=%.2f | severity=%s",
-            zone_pk, zone_id, inlet_flow, outlet_flow, delta, severity,
-        )
+        # STEP 3 — timestamp alignment check
+        # Inlet and outlet readings must be recent and within 2 seconds of each other.
+        # If they are misaligned (old outlet + new inlet, or vice versa), the delta
+        # is stale and would produce a false leak. Reset counter and skip.
+        if state.inlet_timestamp is None or state.outlet_timestamp is None:
+            logger.debug("Zone %d: missing timestamp — skipping evaluation", zone_id)
+            state.flow_mismatch_counter = 0
+            return
 
-        # Auto-close the outlet valve on high-severity mismatch
-        if (
-            severity == "high"
-            and settings.AUTO_CLOSE_VALVE_ON_HIGH
-        ):
-            await db.execute(
-                update(Device)
-                .where(Device.device_id == outlet_device_id)
-                .values(valve_state="closed")
+        ts_gap = abs((state.inlet_timestamp - state.outlet_timestamp).total_seconds())
+        if ts_gap > 2.0:
+            if state.flow_mismatch_counter > 0:
+                logger.debug(
+                    "Zone %d: timestamp gap=%.1fs > 2s — resetting counter",
+                    zone_id, ts_gap,
+                )
+            state.flow_mismatch_counter = 0
+            return
+
+        # STEP 4 — flow delta
+        delta = state.inlet_flow_lpm - state.outlet_flow_lpm
+
+        # STEP 5 — confirmation counter
+        if delta > self.threshold_lpm:
+            state.flow_mismatch_counter += 1
+            logger.debug(
+                "Zone %d: delta=%.2f L/min  counter=%d/%d",
+                zone_id, delta, state.flow_mismatch_counter, self.confirm_count,
             )
-            db.add(ValveLog(
-                device_id    = outlet_device_id,
-                commanded_by = None,
-                action       = "close",
-                source       = "auto_leak",
-            ))
-            logger.warning("AUTO-CLOSE valve for device=%s (flow mismatch)", outlet_device_id)
+        else:
+            if state.flow_mismatch_counter > 0:
+                logger.debug("Zone %d: delta normalised — resetting counter", zone_id)
+            state.flow_mismatch_counter = 0
 
-            if _publish_queue:
-                await _publish_queue.put((network_id, zone_id, outlet_device_id, "close"))
+        # STEP 6 — confirmed?
+        if state.flow_mismatch_counter >= self.confirm_count:
+            await self._on_leak_confirmed(zone_id, state)
 
-        await db.commit()
+    def _is_outlet_alive(self, state: ZoneState) -> bool:
+        """Matches ESP32: bool outletAlive = (millis() - lastHeartbeatMillis) < HEARTBEAT_TIMEOUT_MS"""
+        if state.last_outlet_heartbeat is None:
+            return False
+        return (datetime.utcnow() - state.last_outlet_heartbeat).total_seconds() < self.heartbeat_timeout_sec
+
+    async def _on_leak_confirmed(self, zone_id: int, state: ZoneState) -> None:
+        """
+        Matches ESP32 onLeakDetected():
+            closeValve(); publishLeakAlert(); leakConfirmCounter = 0;
+        """
+        if state.is_leak_active:
+            return   # already active — don't spam
+
+        state.is_leak_active        = True
+        state.leak_detected_at      = datetime.utcnow()
+        state.flow_mismatch_counter = 0
+
+        delta = state.inlet_flow_lpm - state.outlet_flow_lpm
+
+        logger.warning(
+            "LEAK CONFIRMED zone=%d  inlet=%.2f  outlet=%.2f  delta=%.2f L/min",
+            zone_id, state.inlet_flow_lpm, state.outlet_flow_lpm, delta,
+        )
+
+        if self._on_event_created:
+            await self._on_event_created(
+                zone_id,
+                EventType.LEAK_DETECTED,
+                f"Hidden leak: {delta:.2f} L/min lost between inlet and outlet",
+                {
+                    "inlet_flow_lpm":  state.inlet_flow_lpm,
+                    "outlet_flow_lpm": state.outlet_flow_lpm,
+                    "delta_lpm":       delta,
+                    "threshold_lpm":   self.threshold_lpm,
+                    "confirm_count":   self.confirm_count,
+                    "source":          "server_backup",
+                },
+            )
+
+        if self._on_valve_command:
+            await self._on_valve_command(zone_id, "close")
+
+        if self._on_leak_detected:
+            await self._on_leak_detected(zone_id, state.inlet_flow_lpm, state.outlet_flow_lpm)
+
+    # ── Valve failure detection ───────────────────────────────────────────────
+
+    async def _evaluate_valve_failure(self, zone_id: int) -> None:
+        """
+        Detect flow through a closed valve.
+
+        Conditions (all must be true):
+          • valve_state == CLOSED or UNKNOWN (not OPEN)
+          • inlet_flow > VALVE_FAILURE_MIN_FLOW_LPM
+          • Not already flagged as active
+
+        Possible causes:
+          • Valve stuck open or partially open
+          • Pipe bypass around the valve
+          • Leak upstream of the valve
+          • Valve hardware failure
+
+        This runs on every inlet reading alongside the normal leak check.
+        It does NOT close the valve (it's already supposed to be closed) —
+        it only creates a VALVE_FAILURE event for the mobile alert screen.
+        """
+        state = self._get_zone_state(zone_id)
+
+        # Only check when valve is closed or state unknown
+        if state.valve_state == ValveState.OPEN:
+            return
+
+        # Ignore sensor noise below minimum threshold
+        if state.inlet_flow_lpm <= VALVE_FAILURE_MIN_FLOW_LPM:
+            # Flow returned to zero — clear active flag so next incident re-fires
+            if state.is_valve_failure_active:
+                logger.info(
+                    "Zone %d: valve failure cleared — flow dropped to %.2f L/min",
+                    zone_id, state.inlet_flow_lpm,
+                )
+                state.is_valve_failure_active = False
+            return
+
+        # Flow above threshold while valve is closed
+        if state.is_valve_failure_active:
+            return   # already flagged — don't spam
+
+        state.is_valve_failure_active   = True
+        state.valve_failure_detected_at = datetime.utcnow()
+
+        logger.warning(
+            "VALVE FAILURE zone=%d  valve=%s  inlet=%.2f L/min",
+            zone_id, state.valve_state.value, state.inlet_flow_lpm,
+        )
+
+        if self._on_event_created:
+            await self._on_event_created(
+                zone_id,
+                EventType.VALVE_FAILURE,
+                (
+                    f"Flow detected with valve {state.valve_state.value}: "
+                    f"{state.inlet_flow_lpm:.2f} L/min. "
+                    f"Possible causes: valve stuck open, bypass pipe, or upstream leak."
+                ),
+                {
+                    "inlet_flow_lpm": state.inlet_flow_lpm,
+                    "valve_state":    state.valve_state.value,
+                    "threshold_lpm":  VALVE_FAILURE_MIN_FLOW_LPM,
+                },
+            )
+
+    async def clear_valve_failure(self, zone_id: int) -> None:
+        """
+        Clear valve failure flag for a zone (called when user resolves the alert).
+        """
+        state = self._get_zone_state(zone_id)
+        if state.is_valve_failure_active:
+            state.is_valve_failure_active = False
+            logger.info("Zone %d: valve failure cleared by user", zone_id)
+
+    # ── Manual controls ───────────────────────────────────────────────────────
+
+    async def clear_leak(self, zone_id: int) -> None:
+        """
+        Clear leak flag when user resolves an alert.
+        Valve stays closed — user must open it explicitly.
+        """
+        state = self._get_zone_state(zone_id)
+        if not state.is_leak_active:
+            return
+
+        duration                    = self._get_leak_duration(state)
+        state.is_leak_active        = False
+        state.flow_mismatch_counter = 0
+
+        logger.info("Zone %d: leak cleared by user (duration=%.0fs)", zone_id, duration or 0)
+
+        if self._on_event_created:
+            await self._on_event_created(
+                zone_id,
+                EventType.LEAK_CLEARED,
+                "Leak alert cleared by user",
+                {"cleared_by": "user", "leak_duration_sec": duration},
+            )
+
+    def _get_leak_duration(self, state: ZoneState) -> Optional[float]:
+        if state.leak_detected_at:
+            return (datetime.utcnow() - state.leak_detected_at).total_seconds()
+        return None
+
+    # ── Status queries ────────────────────────────────────────────────────────
+
+    def get_zone_state(self, zone_id: int) -> Optional[ZoneState]:
+        return self._zone_states.get(zone_id)
+
+    def get_all_zone_states(self) -> Dict[int, ZoneState]:
+        return self._zone_states.copy()
+
+    def is_leak_active(self, zone_id: int) -> bool:
+        state = self._zone_states.get(zone_id)
+        return state.is_leak_active if state else False
+
+    def get_current_delta(self, zone_id: int) -> Optional[float]:
+        state = self._zone_states.get(zone_id)
+        if state and state.inlet_timestamp and state.outlet_timestamp:
+            return state.inlet_flow_lpm - state.outlet_flow_lpm
+        return None
