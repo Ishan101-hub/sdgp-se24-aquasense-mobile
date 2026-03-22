@@ -51,6 +51,7 @@ from app.routes.district_routes import router as district_router
 from analytics_router import router as analytics_router
 from device_router    import router as device_router, set_publish_queue
 from mobile_router    import router as mobile_router, set_mobile_publish_queue
+from usage_router import router as usage_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -150,6 +151,8 @@ app.include_router(device_router)
 app.include_router(analytics_router)
 app.include_router(mobile_router)
 
+# usage page (rashans)
+app.include_router(usage_router)
 
 @app.get("/health", tags=["system"])
 async def health():

@@ -27,8 +27,7 @@ class AppConstants {
   static const String updateProfile = "/user/update-profile";
   static const String deleteAccount = "/user/delete-account";
   static const String registerDevice = "/user/register-device";
-  static const String waterSources = "/user/water-sources";
-
+ 
   // ─────────────────────────────────────────────
   // TERMS ENDPOINTS
   // ─────────────────────────────────────────────

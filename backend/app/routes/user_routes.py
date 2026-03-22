@@ -139,15 +139,6 @@ async def register_device(
 
 
 # ─────────────────────────────────────────────
-# GET WATER SOURCES
-# ─────────────────────────────────────────────
-
-@router.get("/water-sources")
-async def get_water_sources():
-    return {"water_sources": WATER_SOURCES}
-
-
-# ─────────────────────────────────────────────
 # DELETE ACCOUNT
 # ─────────────────────────────────────────────
 
