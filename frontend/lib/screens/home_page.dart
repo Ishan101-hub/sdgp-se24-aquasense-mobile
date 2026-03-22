@@ -158,20 +158,7 @@ class _HomePageState extends State<HomePage> {
         ? (totalUsed / totalAverage * 100).clamp(0, 999)
         : 0;
 
-    // ── Auto-generate notifications from live data ──
-    final List<AppNotification> notifications = [
-      ..._zones
-          .where((z) => z.used >= z.average)
-          .map((z) => AppNotification(
-                title:          'Over Limit: ${z.name}',
-                message:        '${z.name} consumption reached '
-                                '${z.used.toStringAsFixed(1)}L, exceeding '
-                                'the daily average of ${z.average.toStringAsFixed(1)}L.',
-                type:           'consumption',
-                time:           'Just now',
-                targetTabIndex: 0,
-              )),
-    ];
+    // Notifications fetched dynamically by BellButton from backend
 
     return Scaffold(
       backgroundColor: isDark
@@ -232,9 +219,7 @@ class _HomePageState extends State<HomePage> {
               bottom: 16,
               right: 16,
               child: BellButton(
-                hasNotification: notifications.isNotEmpty,
-                notifications:   notifications,
-                onSwitchTab:     widget.onSwitchTab,
+                onSwitchTab: widget.onSwitchTab,
               ),
             ),
 

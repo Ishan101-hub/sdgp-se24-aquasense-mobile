@@ -10,94 +10,54 @@ class ServicesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Get Theme Data for Dynamic Styling
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    // Use Brand Blue for Light Mode, and a lighter version or White for Dark Mode title
-    final Color titleColor = isDark ? Colors.white : const Color(0xFF0A1B6F);
-
-    // 2. Get Screen Dimensions for Scaling
-    final double screenWidth = MediaQuery.of(context).size.width;
-    final double scale = screenWidth / 393;
+    const Color brandBlue = Color(0xFF0A1B6F);
 
     return Scaffold(
-      // Automatically uses theme's background color
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(
-            parent: BouncingScrollPhysics(),
-          ),
-          padding: EdgeInsets.all(16.0 * scale),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: EdgeInsets.symmetric(vertical: 10 * scale),
-                child: Text(
-                  'Our Services',
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 26 * scale,
-                    color: titleColor, // Dynamically adjusted color
-                  ),
-                ),
-              ),
-              SizedBox(height: 10 * scale),
-              GridView.count(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16 * scale,
-                mainAxisSpacing: 16 * scale,
-                childAspectRatio: 0.85,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  ServiceCard(
-                    icon: Icons.build,
-                    title: 'New Installation',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const InstallationScreen(),
-                      ),
-                    ),
-                  ),
-                  ServiceCard(
-                    icon: Icons.engineering,
-                    title: 'Registered Plumbers',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const PlumbersScreen(),
-                      ),
-                    ),
-                  ),
-                  ServiceCard(
-                    icon: Icons.report_gmailerrorred,
-                    title: 'Report Issue',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ReportIssueScreen(),
-                      ),
-                    ),
-                  ),
-                  ServiceCard(
-                    icon: Icons.headset_mic,
-                    title: 'Customer Support',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const SupportScreen(),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 30 * scale),
-            ],
-          ),
+      backgroundColor: const Color(0xFFF8FAFF),
+      appBar: AppBar(
+        title: const Text('Our Services', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: brandBlue,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: GridView.count(
+          crossAxisCount:   2,
+          crossAxisSpacing: 16,
+          mainAxisSpacing:  16,
+          childAspectRatio: 0.58,
+          children: [
+
+            ServiceCard(
+              icon:  Icons.build,
+              title: 'New Installation',
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const InstallationScreen())),
+            ),
+
+            ServiceCard(
+              icon:  Icons.engineering,
+              title: 'Registered Plumbers',
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const PlumbersScreen())),
+            ),
+
+            ServiceCard(
+              icon:  Icons.report_gmailerrorred,
+              title: 'Report Issue',
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const ReportIssueScreen())),
+            ),
+
+            ServiceCard(
+              icon:  Icons.headset_mic,
+              title: 'Customer Support',
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const SupportScreen())),
+            ),
+
+          ],
         ),
       ),
     );

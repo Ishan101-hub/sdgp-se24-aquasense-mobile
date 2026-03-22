@@ -1,74 +1,90 @@
-// import 'dart:convert';
-// import 'dart:io';
-// import 'package:http/http.dart' as http;
-// import 'package:path_provider/path_provider.dart';
-// import '../models/usage_summary.dart';
-// import '../services/auth_storage.dart';
+import 'dart:convert';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 
-// class ApiService {
-//   // ── Change this to your actual server IP/URL ──────────────────────
-//   // If testing on a physical device with a local FastAPI server:
-//   // Use your PC's local IP e.g. 'http://192.168.1.5:8000'
-//   // If deployed: 'https://your-domain.com'
-//   static const String baseUrl = 'http://192.168.1.5:8000';
+import '../models/usage_summary.dart';
+import '../models/app_notification.dart';
+import '../services/auth_storage.dart'; // Ensure this file exists for token management
 
-//   // ── Usage Summary ─────────────────────────────────────────────────
-//   Future<UsageSummary> fetchUsageSummary({
-//     required int year,
-//     required int month,
-//   }) async {
-//     final token = await AuthStorage.getToken();
+class ApiService {
+  // Use the IP address where your FastAPI server is currently running
+  static const String baseUrl = 'http://192.168.8.171:8000';
 
-//     final uri = Uri.parse(
-//       '$baseUrl/usage/summary?year=$year&month=$month',
-//     );
+  // ── Shared header builder ─────────────────────────────────────────────────
+  // This prevents repeating the Token and Content-Type logic in every method.
+  Future<Map<String, String>> _authHeaders({String? accept}) async {
+    final token = await AuthStorage.getToken();
+    return {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+      if (accept != null) 'Accept': accept,
+    };
+  }
 
-//     final response = await http.get(
-//       uri,
-//       headers: {'Authorization': 'Bearer $token'},
-//     );
+  // ── Usage Summary (Usage Screen) ──────────────────────────────────────────
+  Future<UsageSummary> fetchUsageSummary({
+    required int year,
+    required int month,
+  }) async {
+    final uri = Uri.parse('$baseUrl/usage/summary?year=$year&month=$month');
+    final response = await http.get(uri, headers: await _authHeaders());
 
-//     if (response.statusCode == 200) {
-//       return UsageSummary.fromJson(jsonDecode(response.body));
-//     } else {
-//       throw Exception('Failed to load usage data: ${response.statusCode}');
-//     }
-//   }
+    if (response.statusCode == 200) {
+      return UsageSummary.fromJson(jsonDecode(response.body));
+    } else if (response.statusCode == 404) {
+      return UsageSummary.empty(year, month);
+    } else {
+      throw Exception('Failed to load usage data: ${response.statusCode}');
+    }
+  }
 
-//   // ── Monthly Report PDF Download ───────────────────────────────────
-//   Future<File> downloadMonthlyReport({
-//     required int year,
-//     required int month,
-//   }) async {
-//     final token = await AuthStorage.getToken();
+  // ── Notification Bell Badge Count ────────────────────────────────────────
+  Future<int> fetchUnresolvedAlertCount() async {
+    final uri = Uri.parse('$baseUrl/mobile/alerts?resolved=false&limit=1');
+    final response = await http.get(uri, headers: await _authHeaders());
 
-//     final uri = Uri.parse(
-//       '$baseUrl/reports/monthly?year=$year&month=$month',
-//     );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      // Using 'unread_count' as per your second snippet logic
+      return (data['unread_count'] as num? ?? 0).toInt();
+    }
+    return 0; 
+  }
 
-//     final response = await http.get(
-//       uri,
-//       headers: {
-//         'Authorization': 'Bearer $token',
-//         'Accept': 'application/pdf',
-//       },
-//     );
+  // ── Notifications List (Bell Button) ─────────────────────────────────────
+  Future<List<AppNotification>> fetchNotifications() async {
+    final uri = Uri.parse('$baseUrl/mobile/notifications');
+    final response = await http.get(uri, headers: await _authHeaders());
 
-//     if (response.statusCode == 200) {
-//       final dir = await getApplicationDocumentsDirectory();
-//       final file = File(
-//         '${dir.path}/aquasense_report_${year}_${month.toString().padLeft(2, '0')}.pdf',
-//       );
-//       await file.writeAsBytes(response.bodyBytes);
-//       return file;
-//     } else {
-//       throw Exception('Failed to generate report: ${response.statusCode}');
-//     }
-//   }
-// }
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as List<dynamic>;
+      return data
+          .map((n) => AppNotification.fromJson(n as Map<String, dynamic>))
+          .toList();
+    }
+    return []; 
+  }
 
-// // ## Step 4 — Check if you have `auth_storage.dart`
+  // ── Monthly Report PDF Download ──────────────────────────────────────────
+  Future<File> downloadMonthlyReport({
+    required int year,
+    required int month,
+  }) async {
+    final uri = Uri.parse('$baseUrl/reports/monthly?year=$year&month=$month');
+    final response = await http.get(
+      uri,
+      headers: await _authHeaders(accept: 'application/pdf'),
+    );
 
-// // The file imports `AuthStorage` to get the JWT token. Check if you already have it:
-// // ```
-// // lib/services/auth_storage.dart
+    if (response.statusCode == 200) {
+      final dir = await getApplicationDocumentsDirectory();
+      final name = 'aquasense_report_${year}_${month.toString().padLeft(2, '0')}.pdf';
+      final file = File('${dir.path}/$name');
+      await file.writeAsBytes(response.bodyBytes);
+      return file;
+    } else {
+      throw Exception('Failed to download report: ${response.statusCode}');
+    }
+  }
+}

@@ -1,4 +1,10 @@
+// lib/screens/usage_screen.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
+
+import '../models/usage_summary.dart';
+import '../services/api_service.dart';
 
 class UsageScreen extends StatefulWidget {
   const UsageScreen({super.key});
@@ -8,8 +14,9 @@ class UsageScreen extends StatefulWidget {
 }
 
 class _UsageScreenState extends State<UsageScreen> {
-  String selectedYear = "2026";
-  String selectedMonth = "January";
+  // ── Date selection ───────────────────────────────────────────────
+  late int selectedYear;
+  late int selectedMonth;
 
   final List<String> years = ["2024", "2025", "2026", "2027"];
   final List<String> months = [
@@ -27,91 +34,258 @@ class _UsageScreenState extends State<UsageScreen> {
     "December",
   ];
 
+  // ── Data state ───────────────────────────────────────────────────
+  UsageSummary? _summary;
+  int _alertCount = 0;
+  bool _isLoading = false;
+  bool _isPdfLoading = false;
+  String? _error;
+
+  final _api = ApiService();
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    selectedYear = now.year;
+    selectedMonth = now.month;
+    _loadAll();
+  }
+
+  // ── Fetch both summary and alert count in parallel ───────────────
+  Future<void> _loadAll() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    UsageSummary? summary;
+    int alertCount = 0;
+    String? error;
+
+    try {
+      final results = await Future.wait([
+        _api.fetchUsageSummary(year: selectedYear, month: selectedMonth),
+        _api.fetchUnresolvedAlertCount(),
+      ]);
+      summary = results[0] as UsageSummary;
+      alertCount = results[1] as int;
+    } catch (e) {
+      error = e.toString();
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _summary = summary ?? _summary;
+      _alertCount = alertCount;
+      _error = error;
+      _isLoading = false;
+    });
+  }
+
+  // ── Dropdown callbacks ───────────────────────────────────────────
+  void _onYearChanged(String val) {
+    setState(() => selectedYear = int.parse(val));
+    _loadAll();
+  }
+
+  void _onMonthChanged(String val) {
+    setState(() => selectedMonth = months.indexOf(val) + 1);
+    _loadAll();
+  }
+
+  // ── PDF generation ───────────────────────────────────────────────
+  Future<void> _generateReport() async {
+    if (!mounted) return;
+    setState(() => _isPdfLoading = true);
+
+    String? errorMsg;
+
+    try {
+      final File pdf = await _api.downloadMonthlyReport(
+        year: selectedYear,
+        month: selectedMonth,
+      );
+      if (!mounted) return;
+      await OpenFilex.open(pdf.path);
+    } catch (e) {
+      errorMsg = e.toString();
+    }
+
+    if (!mounted) return;
+    setState(() => _isPdfLoading = false);
+
+    if (errorMsg != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not generate report: $errorMsg'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  // ── Number formatter ─────────────────────────────────────────────
+  String _fmt(double val) {
+    return val
+        .toStringAsFixed(0)
+        .replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',');
+  }
+
   @override
   Widget build(BuildContext context) {
-    // 1. Get Theme Data for adaptive styling
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final scale = MediaQuery.of(context).size.width / 393;
 
-    final double screenWidth = MediaQuery.of(context).size.width;
-    final double scale = screenWidth / 393;
-
-    // 2. Define Adaptive Palette
     const Color aquaAccent = Color.fromARGB(255, 4, 119, 91);
-    // Use pure white for dark mode and your brand blue for light mode
     final Color mainTextColor = isDark ? Colors.white : const Color(0xFF0A1B6F);
 
+    final monthly = _summary != null
+        ? _fmt(
+            _summary!.isProjected
+                ? _summary!.projectedMonthlyTotal
+                : _summary!.monthlyTotal,
+          )
+        : '--';
+    final weekly = _summary != null ? _fmt(_summary!.weeklyAvg) : '--';
+    final daily = _summary != null ? _fmt(_summary!.dailyAvg) : '--';
+    final leaks = _summary != null ? '${_summary!.leakCount}' : '--';
+
     return Scaffold(
-      // Uses the background color defined in your main theme (no hardcoded Ash)
       backgroundColor: theme.scaffoldBackgroundColor,
-      body: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(
-          parent: BouncingScrollPhysics(),
-        ),
-        padding: EdgeInsets.all(20 * scale),
-        child: Column(
-          children: [
-            // Functional Inline Dropdown
-            _buildInlineDateSelector(aquaAccent, scale, theme, isDark),
-
-            SizedBox(height: 25 * scale),
-
-            _buildMainUsageCard(
-              mainTextColor,
-              theme.cardColor,
-              scale,
-              "15,250",
-              theme,
-              isDark,
-            ),
-
-            SizedBox(height: 15 * scale),
-
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatCard(
-                    "Weekly Avg",
-                    "3,812",
-                    "L",
-                    mainTextColor,
-                    theme.cardColor,
-                    scale,
-                    theme,
-                    isDark,
+      body: Stack(
+        children: [
+          RefreshIndicator(
+            color: aquaAccent,
+            onRefresh: _loadAll,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              padding: EdgeInsets.all(20 * scale),
+              child: Column(
+                children: [
+                  Center(
+                    child: _buildInlineDateSelector(
+                      aquaAccent,
+                      scale,
+                      theme,
+                      isDark,
+                    ),
                   ),
-                ),
-                SizedBox(width: 15 * scale),
-                Expanded(
-                  child: _buildStatCard(
-                    "Daily Avg",
-                    "508",
-                    "L",
-                    mainTextColor,
-                    theme.cardColor,
-                    scale,
-                    theme,
-                    isDark,
-                  ),
-                ),
-              ],
+                  SizedBox(height: 25 * scale),
+
+                  if (_isLoading)
+                    Padding(
+                      padding: EdgeInsets.symmetric(vertical: 60 * scale),
+                      child: const CircularProgressIndicator(
+                        color: Color.fromARGB(255, 4, 119, 91),
+                      ),
+                    )
+                  else if (_error != null)
+                    _buildErrorState(scale, isDark)
+                  else ...[
+                    _buildMainUsageCard(
+                      mainTextColor,
+                      theme.cardColor,
+                      scale,
+                      monthly,
+                      theme,
+                      isDark,
+                      isProjected: _summary?.isProjected ?? false,
+                      daysWithData: _summary?.daysWithData ?? 0,
+                      daysInMonth: _summary?.daysInMonth ?? 0,
+                    ),
+                    SizedBox(height: 15 * scale),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildStatCard(
+                            "Weekly Avg",
+                            weekly,
+                            "L",
+                            mainTextColor,
+                            theme.cardColor,
+                            scale,
+                            theme,
+                            isDark,
+                          ),
+                        ),
+                        SizedBox(width: 15 * scale),
+                        Expanded(
+                          child: _buildStatCard(
+                            "Daily Avg",
+                            daily,
+                            "L",
+                            mainTextColor,
+                            theme.cardColor,
+                            scale,
+                            theme,
+                            isDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 20 * scale),
+                    _buildAlertCard(
+                      theme.cardColor,
+                      scale,
+                      leaks,
+                      theme,
+                      isDark,
+                    ),
+                    SizedBox(height: 25 * scale),
+                    _buildReportButton(aquaAccent, scale),
+                    SizedBox(height: 80 * scale),
+                  ],
+                ],
+              ),
             ),
-
-            SizedBox(height: 20 * scale),
-
-            _buildAlertCard(theme.cardColor, scale, "3", theme, isDark),
-
-            SizedBox(height: 25 * scale),
-
-            _buildReportButton(aquaAccent, scale),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  // --- ADAPTIVE UI HELPER METHODS ---
+  // ── Error state ──────────────────────────────────────────────────
+  Widget _buildErrorState(double scale, bool isDark) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(height: 60 * scale),
+          const Icon(Icons.wifi_off, size: 60, color: Colors.grey),
+          const SizedBox(height: 16),
+          const Text(
+            'Failed to load data.\nCheck your connection.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey, fontSize: 14),
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            onPressed: () {
+              setState(() {
+                _isLoading = true;
+                _error = null;
+              });
+              _loadAll();
+            },
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1A1A6E),
+              foregroundColor: Colors.white,
+            ),
+          ),
+          SizedBox(height: 60 * scale),
+        ],
+      ),
+    );
+  }
 
+  // ── Date selector ────────────────────────────────────────────────
   Widget _buildInlineDateSelector(
     Color color,
     double scale,
@@ -133,8 +307,8 @@ class _UsageScreenState extends State<UsageScreen> {
         children: [
           _buildPopupMenu(
             years,
-            selectedYear,
-            (val) => setState(() => selectedYear = val),
+            selectedYear.toString(),
+            _onYearChanged,
             theme,
             isDark,
           ),
@@ -146,8 +320,8 @@ class _UsageScreenState extends State<UsageScreen> {
           ),
           _buildPopupMenu(
             months,
-            selectedMonth,
-            (val) => setState(() => selectedMonth = val),
+            months[selectedMonth - 1],
+            _onMonthChanged,
             theme,
             isDark,
           ),
@@ -184,7 +358,7 @@ class _UsageScreenState extends State<UsageScreen> {
           ),
         ],
       ),
-      itemBuilder: (context) => items.map((String item) {
+      itemBuilder: (context) => items.map((item) {
         return PopupMenuItem<String>(
           value: item,
           child: Text(
@@ -203,14 +377,18 @@ class _UsageScreenState extends State<UsageScreen> {
     );
   }
 
+  // ── Cards ────────────────────────────────────────────────────────
   Widget _buildMainUsageCard(
     Color textColor,
     Color cardBg,
     double scale,
     String value,
     ThemeData theme,
-    bool isDark,
-  ) {
+    bool isDark, {
+    bool isProjected = false,
+    int daysWithData = 0,
+    int daysInMonth = 0,
+  }) {
     return Container(
       width: double.infinity,
       padding: EdgeInsets.symmetric(
@@ -231,7 +409,7 @@ class _UsageScreenState extends State<UsageScreen> {
       child: Column(
         children: [
           Text(
-            "Monthly Water Usage",
+            isProjected ? "Projected Monthly Usage" : "Monthly Water Usage",
             style: theme.textTheme.bodyMedium?.copyWith(
               color: isDark ? Colors.white70 : Colors.grey[600],
               fontSize: 16 * scale,
@@ -261,6 +439,30 @@ class _UsageScreenState extends State<UsageScreen> {
               ),
             ],
           ),
+          if (isProjected && daysWithData > 0) ...[
+            SizedBox(height: 10 * scale),
+            Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: 12 * scale,
+                vertical: 5 * scale,
+              ),
+              decoration: BoxDecoration(
+                color: const Color.fromARGB(255, 4, 119, 91).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color.fromARGB(255, 4, 119, 91).withOpacity(0.3),
+                ),
+              ),
+              child: Text(
+                "Based on $daysWithData of $daysInMonth days",
+                style: TextStyle(
+                  fontSize: 12 * scale,
+                  color: const Color.fromARGB(255, 4, 119, 91),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -377,6 +579,7 @@ class _UsageScreenState extends State<UsageScreen> {
     );
   }
 
+  // ── Report button ────────────────────────────────────────────────
   Widget _buildReportButton(Color color, double scale) {
     return Container(
       width: double.infinity,
@@ -386,11 +589,20 @@ class _UsageScreenState extends State<UsageScreen> {
         gradient: LinearGradient(colors: [color, color.withOpacity(0.8)]),
       ),
       child: ElevatedButton.icon(
-        onPressed: () {},
-        icon: const Icon(Icons.picture_as_pdf, size: 22),
-        label: const Text(
-          "GENERATE MONTHLY REPORT",
-          style: TextStyle(
+        onPressed: (_isLoading || _isPdfLoading) ? null : _generateReport,
+        icon: _isPdfLoading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
+            : const Icon(Icons.picture_as_pdf, size: 22),
+        label: Text(
+          _isPdfLoading ? "GENERATING..." : "GENERATE MONTHLY REPORT",
+          style: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.bold,
             letterSpacing: 0.5,
