@@ -44,7 +44,8 @@ class _SecurityScreenState extends State<SecurityScreen> {
       setState(() {
         _twoFactor   = result['two_factor_enabled']   ?? false;
         _loginAlerts = result['login_alerts_enabled'] ?? false;
-        _autoLock    = (result['auto_lock_minutes'] ?? 0) > 0;
+        // treat auto_lock_minutes > 1 as "on" (1 is our "off" sentinel)
+        _autoLock    = (result['auto_lock_minutes'] ?? 1) > 1;
       });
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -68,6 +69,31 @@ class _SecurityScreenState extends State<SecurityScreen> {
     } else {
       // Disabling — ask for password first
       _showDisablePasswordDialog();
+    }
+  }
+
+  // ── Handle auto lock toggle ──────────────────────────────
+  Future<void> _onAutoLockToggle(bool val) async {
+    setState(() => _autoLock = val);
+
+    // Send 30 minutes when on, 1 minute when off (0 is not allowed by backend)
+    // Flutter treats auto_lock_minutes == 1 as "off" since it's the minimum
+    final minutes = val ? 30 : 1;
+
+    final result = await AuthService.setAutoLock(minutes);
+
+    if (!result['success']) {
+      setState(() => _autoLock = !val); // revert on failure
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message']), backgroundColor: Colors.red),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(val ? 'Auto lock set to 30 minutes.' : 'Auto lock disabled.'),
+          backgroundColor: const Color(0xFF0A1B6F),
+        ),
+      );
     }
   }
 
@@ -499,13 +525,13 @@ class _SecurityScreenState extends State<SecurityScreen> {
 
                         _buildDivider(),
 
-                        // ── Auto lock (local only) ──────────
+                        // ── Auto lock ──────────────────────
                         _buildToggleTile(
                           icon: Icons.timer_outlined,
                           title: 'Auto Lock',
-                          subtitle: 'Lock app after 5 minutes of inactivity',
+                          subtitle: 'Lock app after 30 minutes of inactivity',
                           value: _autoLock,
-                          onChanged: (val) => setState(() => _autoLock = val),
+                          onChanged: _onAutoLockToggle,
                           isLast: true,
                         ),
                       ],

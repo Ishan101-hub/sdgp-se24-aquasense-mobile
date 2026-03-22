@@ -324,6 +324,31 @@ class AuthService {
     }
   }
 
+  // ── Set Auto Lock ──────────────────────────────────────
+  static Future<Map<String, dynamic>> setAutoLock(int minutes) async {
+    try {
+      final token = await getAccessToken();
+      final response = await http.post(
+        Uri.parse('http://localhost:8000/security/auto-lock'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'minutes': minutes}),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'message': data['message']};
+      }
+
+      return {'success': false, 'message': data['detail'] ?? 'Failed to update auto lock'};
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
+    }
+  }
+
   // ── Toggle Login Alerts ────────────────────────────────
   static Future<Map<String, dynamic>> toggleLoginAlerts(bool enabled) async {
     try {
