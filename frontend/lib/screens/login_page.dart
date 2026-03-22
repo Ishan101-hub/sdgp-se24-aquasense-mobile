@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
+import '../services/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
   LoginPage({super.key});
@@ -11,9 +12,13 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
 
+  // ── Login controllers ────────────────────────────────────
+  final _emailController    = TextEditingController();
+  final _passwordController = TextEditingController();
+
   // ── Forgot Password controllers ──────────────────────────
-  final _forgotEmailController = TextEditingController();
-  final _forgotNewPasswordController = TextEditingController();
+  final _forgotEmailController          = TextEditingController();
+  final _forgotNewPasswordController    = TextEditingController();
   final _forgotConfirmPasswordController = TextEditingController();
 
   // ── OTP controllers ──────────────────────────────────────
@@ -22,19 +27,62 @@ class _LoginPageState extends State<LoginPage> {
   final List<FocusNode> _otpFocusNodes =
       List.generate(6, (_) => FocusNode());
 
-  bool _isSendingReset = false;
-  bool _isVerifyingOtp = false;
-  bool _obscureNew = true;
-  bool _obscureConfirm = true;
+  bool _isLoggingIn      = false;
+  bool _isSendingReset   = false;
+  bool _isVerifyingOtp   = false;
+  bool _obscureNew       = true;
+  bool _obscureConfirm   = true;
 
   @override
   void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
     _forgotEmailController.dispose();
     _forgotNewPasswordController.dispose();
     _forgotConfirmPasswordController.dispose();
     for (final c in _otpControllers) c.dispose();
     for (final f in _otpFocusNodes) f.dispose();
     super.dispose();
+  }
+
+  // ── Login ────────────────────────────────────────────────
+  Future<void> _onLogin() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    setState(() => _isLoggingIn = true);
+
+    final result = await AuthService.login(
+      email:    _emailController.text.trim(),
+      password: _passwordController.text,
+    );
+
+    setState(() => _isLoggingIn = false);
+
+    if (result['success']) {
+      if (result['two_factor_required'] == true) {
+        // 2FA enabled — show OTP dialog for 2FA
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('A 2FA OTP has been sent to your email.'),
+            backgroundColor: Color(0xFF0A1B6F),
+          ),
+        );
+        // TODO: show 2FA OTP dialog if needed
+      } else {
+        // No 2FA — go straight to home
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message']),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   // ── Step 1: Show email + new password dialog ─────────────
@@ -71,8 +119,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     child: const Column(
                       children: [
-                        Icon(Icons.lock_reset,
-                            color: Colors.white, size: 36),
+                        Icon(Icons.lock_reset, color: Colors.white, size: 36),
                         SizedBox(height: 8),
                         Text(
                           'Reset Password',
@@ -120,14 +167,13 @@ class _LoginPageState extends State<LoginPage> {
                           TextFormField(
                             controller: _forgotEmailController,
                             keyboardType: TextInputType.emailAddress,
-                            decoration: _dialogInputDecoration(
-                                'example@gmail.com'),
+                            decoration:
+                                _dialogInputDecoration('example@gmail.com'),
                             validator: (v) {
                               if (v == null || v.isEmpty) {
                                 return 'Please enter your email';
                               }
-                              if (!RegExp(r'^[^@]+@[^@]+\.[^@]+')
-                                  .hasMatch(v)) {
+                              if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)) {
                                 return 'Enter a valid email';
                               }
                               return null;
@@ -167,9 +213,7 @@ class _LoginPageState extends State<LoginPage> {
                               if (v == null || v.isEmpty) {
                                 return 'Please enter a new password';
                               }
-                              if (v.length < 8) {
-                                return 'Minimum 8 characters';
-                              }
+                              if (v.length < 8) return 'Minimum 8 characters';
                               return null;
                             },
                           ),
@@ -199,8 +243,8 @@ class _LoginPageState extends State<LoginPage> {
                                   size: 18,
                                   color: Colors.grey,
                                 ),
-                                onPressed: () => setDialogState(() =>
-                                    _obscureConfirm = !_obscureConfirm),
+                                onPressed: () => setDialogState(
+                                    () => _obscureConfirm = !_obscureConfirm),
                               ),
                             ),
                             validator: (v) {
@@ -230,22 +274,33 @@ class _LoginPageState extends State<LoginPage> {
                                       setDialogState(
                                           () => _isSendingReset = true);
 
-                                      // TODO: call backend forgot password endpoint
-                                      // e.g. await ApiService.sendResetOtp(email, newPassword);
-                                      await Future.delayed(const Duration(
-                                          seconds: 1)); // simulate
+                                      // Call forgot password endpoint
+                                      final result =
+                                          await AuthService.forgotPassword(
+                                        _forgotEmailController.text.trim(),
+                                      );
 
                                       setDialogState(
                                           () => _isSendingReset = false);
 
-                                      Navigator.pop(ctx); // close this dialog
-                                      _showResetOtpDialog(); // open OTP dialog
+                                      if (result['success']) {
+                                        Navigator.pop(ctx);
+                                        _showResetOtpDialog();
+                                      } else {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text(result['message']),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
                                     },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF0A1B6F),
                                 disabledBackgroundColor: Colors.grey[300],
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 14),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
@@ -272,14 +327,13 @@ class _LoginPageState extends State<LoginPage> {
 
                           const SizedBox(height: 8),
 
-                          // Cancel
                           Center(
                             child: TextButton(
                               onPressed: () => Navigator.pop(ctx),
                               child: const Text(
                                 'Cancel',
-                                style: TextStyle(
-                                    color: Colors.grey, fontSize: 13),
+                                style:
+                                    TextStyle(color: Colors.grey, fontSize: 13),
                               ),
                             ),
                           ),
@@ -298,7 +352,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // ── Step 2: OTP verification dialog ─────────────────────
+  // ── Step 2: OTP verification + reset dialog ──────────────
   void _showResetOtpDialog() {
     for (final c in _otpControllers) c.clear();
 
@@ -418,12 +472,16 @@ class _LoginPageState extends State<LoginPage> {
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
-                          onPressed: () {
-                            // TODO: call backend resend OTP endpoint
+                          onPressed: () async {
+                            final result = await AuthService.forgotPassword(
+                              _forgotEmailController.text.trim(),
+                            );
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('OTP resent to your email.'),
-                                backgroundColor: Color(0xFF0A1B6F),
+                              SnackBar(
+                                content: Text(result['message']),
+                                backgroundColor: result['success']
+                                    ? const Color(0xFF0A1B6F)
+                                    : Colors.red,
                               ),
                             );
                           },
@@ -440,7 +498,7 @@ class _LoginPageState extends State<LoginPage> {
 
                       const SizedBox(height: 8),
 
-                      // Verify button
+                      // Verify & Reset button
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -452,8 +510,7 @@ class _LoginPageState extends State<LoginPage> {
                                       .join();
 
                                   if (otp.length < 6) {
-                                    ScaffoldMessenger.of(context)
-                                        .showSnackBar(
+                                    ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
                                         content: Text(
                                             'Please enter the full 6-digit OTP.'),
@@ -466,32 +523,35 @@ class _LoginPageState extends State<LoginPage> {
                                   setDialogState(
                                       () => _isVerifyingOtp = true);
 
-                                  // TODO: call backend OTP verify + password reset endpoint
-                                  // e.g. await ApiService.verifyResetOtp(email, otp, newPassword);
-                                  await Future.delayed(const Duration(
-                                      seconds: 1)); // simulate
+                                  // Call reset password endpoint
+                                  final result =
+                                      await AuthService.resetPassword(
+                                    email: _forgotEmailController.text.trim(),
+                                    otp: otp,
+                                    newPassword:
+                                        _forgotNewPasswordController.text,
+                                  );
 
                                   setDialogState(
                                       () => _isVerifyingOtp = false);
 
-                                  Navigator.pop(ctx); // close OTP dialog
-
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                          'Password reset successfully!'),
-                                      backgroundColor: Color(0xFF0A1B6F),
-                                    ),
-                                  );
-
-                                  // Navigate to home, clear all previous routes
-                                  Navigator.pushAndRemoveUntil(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) =>
-                                            const HomeScreen()),
-                                    (route) => false,
-                                  );
+                                  if (result['success']) {
+                                    Navigator.pop(ctx);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                            'Password reset successfully! Please log in.'),
+                                        backgroundColor: Color(0xFF0A1B6F),
+                                      ),
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(result['message']),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
                                 },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF0A1B6F),
@@ -528,8 +588,7 @@ class _LoginPageState extends State<LoginPage> {
                         onPressed: () => Navigator.pop(ctx),
                         child: const Text(
                           'Cancel',
-                          style:
-                              TextStyle(color: Colors.grey, fontSize: 13),
+                          style: TextStyle(color: Colors.grey, fontSize: 13),
                         ),
                       ),
 
@@ -546,12 +605,10 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   // ── Input decoration helper for dialogs ──────────────────
-  InputDecoration _dialogInputDecoration(String hint,
-      {Widget? suffix}) {
+  InputDecoration _dialogInputDecoration(String hint, {Widget? suffix}) {
     return InputDecoration(
       hintText: hint,
-      hintStyle:
-          TextStyle(color: Colors.grey[400], fontSize: 13),
+      hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
       contentPadding:
           const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       border: OutlineInputBorder(
@@ -564,8 +621,7 @@ class _LoginPageState extends State<LoginPage> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(
-            color: Color(0xFF0A1B6F), width: 1.5),
+        borderSide: const BorderSide(color: Color(0xFF0A1B6F), width: 1.5),
       ),
       filled: true,
       fillColor: Colors.white,
@@ -586,9 +642,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
           ),
-          Container(
-            color: Colors.white.withOpacity(0.15),
-          ),
+          Container(color: Colors.white.withOpacity(0.15)),
           SafeArea(
             child: SingleChildScrollView(
               child: Column(
@@ -604,8 +658,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 40),
                   Container(
-                    margin:
-                        const EdgeInsets.symmetric(horizontal: 24),
+                    margin: const EdgeInsets.symmetric(horizontal: 24),
                     padding: const EdgeInsets.symmetric(
                         horizontal: 24, vertical: 32),
                     decoration: BoxDecoration(
@@ -636,6 +689,8 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           const SizedBox(height: 24),
+
+                          // ── Email ──────────────────────────
                           const Text(
                             'Email/Phone :',
                             style: TextStyle(
@@ -646,14 +701,14 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           const SizedBox(height: 6),
                           TextFormField(
+                            controller: _emailController,
                             style: const TextStyle(color: Colors.black),
                             decoration: InputDecoration(
                               hintText: 'example@gmail.com',
                               hintStyle: TextStyle(
                                   color: Colors.grey[400], fontSize: 13),
-                              contentPadding:
-                                  const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 12),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 12),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                                 borderSide:
@@ -670,8 +725,7 @@ class _LoginPageState extends State<LoginPage> {
                             validator: (value) {
                               if (value == null || value.isEmpty) {
                                 return 'Please enter your email';
-                              } else if (!RegExp(
-                                      r'^[^@]+@[^@]+\.[^@]+')
+                              } else if (!RegExp(r'^[^@]+@[^@]+\.[^@]+')
                                   .hasMatch(value)) {
                                 return 'Please enter a valid email';
                               }
@@ -679,6 +733,8 @@ class _LoginPageState extends State<LoginPage> {
                             },
                           ),
                           const SizedBox(height: 14),
+
+                          // ── Password ───────────────────────
                           const Text(
                             'Password',
                             style: TextStyle(
@@ -689,15 +745,15 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           const SizedBox(height: 6),
                           TextFormField(
+                            controller: _passwordController,
                             obscureText: true,
                             style: const TextStyle(color: Colors.black),
                             decoration: InputDecoration(
                               hintText: 'Password',
                               hintStyle: TextStyle(
                                   color: Colors.grey[400], fontSize: 13),
-                              contentPadding:
-                                  const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 12),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 12),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                                 borderSide:
@@ -721,9 +777,10 @@ class _LoginPageState extends State<LoginPage> {
                             },
                           ),
                           const SizedBox(height: 6),
+
+                          // ── Forgot Password ────────────────
                           Center(
                             child: TextButton(
-                              // ── Forgot Password tapped ──
                               onPressed: _showForgotPasswordDialog,
                               style: TextButton.styleFrom(
                                 padding: EdgeInsets.zero,
@@ -742,49 +799,49 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           const SizedBox(height: 16),
+
+                          // ── Login button ───────────────────
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
-                              onPressed: () {
-                                if (_formKey.currentState?.validate() ??
-                                    false) {
-                                  Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) =>
-                                            const HomeScreen()),
-                                  );
-                                }
-                              },
+                              onPressed: _isLoggingIn ? null : _onLogin,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    const Color(0xFF1A3A5C),
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 14),
+                                backgroundColor: const Color(0xFF1A3A5C),
+                                disabledBackgroundColor: Colors.grey[300],
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(10),
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
                                 elevation: 2,
                               ),
-                              child: const Text(
-                                'Log In',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
+                              child: _isLoggingIn
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Log In',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
                             ),
                           ),
                           const SizedBox(height: 16),
+
+                          // ── Or continue with ───────────────
                           Center(
                             child: Text(
                               'or continue with',
                               style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 13,
-                              ),
+                                  color: Colors.grey[600], fontSize: 13),
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -796,8 +853,8 @@ class _LoginPageState extends State<LoginPage> {
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  border: Border.all(
-                                      color: Colors.grey[300]!),
+                                  border:
+                                      Border.all(color: Colors.grey[300]!),
                                   color: Colors.white,
                                 ),
                                 child: Image.asset(
@@ -809,24 +866,22 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           const SizedBox(height: 16),
+
+                          // ── Register link ──────────────────
                           Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.center,
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
                                 "Don't have an account?",
                                 style: TextStyle(
-                                    color: Colors.grey[700],
-                                    fontSize: 13),
+                                    color: Colors.grey[700], fontSize: 13),
                               ),
                               TextButton(
                                 onPressed: () {
-                                  Navigator.pushNamed(
-                                      context, '/register');
+                                  Navigator.pushNamed(context, '/register');
                                 },
                                 style: TextButton.styleFrom(
-                                  padding:
-                                      const EdgeInsets.only(left: 4),
+                                  padding: const EdgeInsets.only(left: 4),
                                   minimumSize: Size.zero,
                                   tapTargetSize:
                                       MaterialTapTargetSize.shrinkWrap,

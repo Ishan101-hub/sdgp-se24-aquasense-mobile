@@ -102,30 +102,41 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ── CORS ──────────────────────────────────────────────────────
-_env = os.getenv("ENVIRONMENT", "production").lower()
+_env = os.getenv("ENVIRONMENT", "development").lower()
 
 _production_origins = [
     o.strip()
     for o in os.getenv("CORS_ALLOWED_ORIGINS", "https://app.aquasense.com").split(",")
     if o.strip()
 ]
+
+# Flutter web runs on a random port during development (e.g. 52xxx)
+# so we allow all localhost/127.0.0.1 origins in development
 _dev_origins = [
+    "http://localhost",
     "http://localhost:3000",
+    "http://localhost:5000",
+    "http://localhost:8000",
     "http://localhost:8080",
     "http://localhost:8081",
+    "http://localhost:52000",
+    "http://localhost:52001",
+    "http://127.0.0.1",
     "http://127.0.0.1:3000",
+    "http://127.0.0.1:5000",
+    "http://127.0.0.1:8000",
 ]
+
 _allowed_origins = (
     _production_origins + _dev_origins if _env == "development" else _production_origins
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_allowed_origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allow_headers=["Authorization", "Content-Type", "Accept"],
-    max_age=600,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ── Global exception handler ──────────────────────────────────

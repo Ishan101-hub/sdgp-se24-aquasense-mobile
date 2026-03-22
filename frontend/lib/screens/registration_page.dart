@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 
 class RegistrationPage extends StatefulWidget {
   RegistrationPage({super.key});
@@ -10,17 +11,27 @@ class RegistrationPage extends StatefulWidget {
 class _RegistrationPageState extends State<RegistrationPage> {
   final _formKey = GlobalKey<FormState>();
 
-  // ── OTP controllers (6 digits) ──────────────────────────
+  // ── Field controllers ────────────────────────────────────
+  final _nameController     = TextEditingController();
+  final _emailController    = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _phoneController    = TextEditingController();
+
+  // ── OTP controllers (6 digits) ───────────────────────────
   final List<TextEditingController> _otpControllers =
       List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _otpFocusNodes =
       List.generate(6, (_) => FocusNode());
 
-  bool _isLoading = false;
+  bool _isLoading      = false;
   bool _isVerifyingOtp = false;
 
   @override
   void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _phoneController.dispose();
     for (final c in _otpControllers) c.dispose();
     for (final f in _otpFocusNodes) f.dispose();
     super.dispose();
@@ -32,19 +43,31 @@ class _RegistrationPageState extends State<RegistrationPage> {
 
     setState(() => _isLoading = true);
 
-    // TODO: call your backend registration endpoint here
-    // e.g. await ApiService.register(name, email, password, phone);
-    await Future.delayed(const Duration(seconds: 1)); // simulate network
+    final phone = _phoneController.text.trim();
+
+    final result = await AuthService.register(
+      name:     _nameController.text.trim(),
+      email:    _emailController.text.trim(),
+      password: _passwordController.text,
+      phone:    phone.isNotEmpty ? '+94$phone' : null,
+    );
 
     setState(() => _isLoading = false);
 
-    // Show OTP dialog after backend call succeeds
-    _showOtpDialog();
+    if (result['success']) {
+      _showOtpDialog();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message']),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   // ── OTP Dialog ───────────────────────────────────────────
   void _showOtpDialog() {
-    // Clear any previous OTP input
     for (final c in _otpControllers) c.clear();
 
     showDialog(
@@ -145,11 +168,9 @@ class _RegistrationPageState extends State<RegistrationPage> {
                               ),
                               onChanged: (val) {
                                 if (val.isNotEmpty && i < 5) {
-                                  // Move to next box
                                   FocusScope.of(ctx)
                                       .requestFocus(_otpFocusNodes[i + 1]);
                                 } else if (val.isEmpty && i > 0) {
-                                  // Move back on delete
                                   FocusScope.of(ctx)
                                       .requestFocus(_otpFocusNodes[i - 1]);
                                 }
@@ -165,12 +186,16 @@ class _RegistrationPageState extends State<RegistrationPage> {
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
-                          onPressed: () {
-                            // TODO: call backend resend OTP endpoint
+                          onPressed: () async {
+                            final result = await AuthService.resendOtp(
+                              _emailController.text.trim(),
+                            );
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('OTP resent to your email.'),
-                                backgroundColor: Color(0xFF0A1B6F),
+                              SnackBar(
+                                content: Text(result['message']),
+                                backgroundColor: result['success']
+                                    ? const Color(0xFF0A1B6F)
+                                    : Colors.red,
                               ),
                             );
                           },
@@ -201,8 +226,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                   if (otp.length < 6) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content:
-                                            Text('Please enter the full 6-digit OTP.'),
+                                        content: Text(
+                                            'Please enter the full 6-digit OTP.'),
                                         backgroundColor: Colors.red,
                                       ),
                                     );
@@ -212,22 +237,29 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                   setDialogState(
                                       () => _isVerifyingOtp = true);
 
-                                  // TODO: call your backend OTP verify endpoint here
-                                  // e.g. await ApiService.verifyOtp(email, otp);
-                                  await Future.delayed(
-                                      const Duration(seconds: 1)); // simulate
+                                  final result = await AuthService.verifyOtp(
+                                    email: _emailController.text.trim(),
+                                    otp: otp,
+                                  );
 
                                   setDialogState(
                                       () => _isVerifyingOtp = false);
 
-                                  Navigator.pop(ctx); // close dialog
-
-                                  // Navigate to home, clear all previous routes
-                                  Navigator.pushNamedAndRemoveUntil(
-                                    context,
-                                    '/home',
-                                    (route) => false,
-                                  );
+                                  if (result['success']) {
+                                    Navigator.pop(ctx);
+                                    Navigator.pushNamedAndRemoveUntil(
+                                      context,
+                                      '/home',
+                                      (route) => false,
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(result['message']),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
                                 },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF0A1B6F),
@@ -344,30 +376,64 @@ class _RegistrationPageState extends State<RegistrationPage> {
                             ),
                           ),
                           const SizedBox(height: 24),
+
+                          // ── Full Name ──────────────────────
                           _buildLabel('Full Name'),
                           const SizedBox(height: 6),
                           TextFormField(
-                            style: const TextStyle(color: Colors.black87), // ← forces black text in any theme
-                            decoration:
-                                _inputDecoration('Enter your full name'),
+                            controller: _nameController,
+                            style: const TextStyle(color: Colors.black87),
+                            decoration: _inputDecoration('Enter your full name'),
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return 'Name is required';
+                              }
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 14),
+
+                          // ── Email ──────────────────────────
                           _buildLabel('Email'),
                           const SizedBox(height: 6),
                           TextFormField(
-                            style: const TextStyle(color: Colors.black87), // ← forces black text in any theme
-                            decoration:
-                                _inputDecoration('example@gmail.com'),
+                            controller: _emailController,
+                            style: const TextStyle(color: Colors.black87),
+                            decoration: _inputDecoration('example@gmail.com'),
+                            keyboardType: TextInputType.emailAddress,
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return 'Email is required';
+                              }
+                              if (!v.contains('@') || !v.contains('.')) {
+                                return 'Enter a valid email address';
+                              }
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 14),
+
+                          // ── Password ───────────────────────
                           _buildLabel('Password'),
                           const SizedBox(height: 6),
                           TextFormField(
+                            controller: _passwordController,
                             obscureText: true,
-                            style: const TextStyle(color: Colors.black87), // ← forces black text in any theme
+                            style: const TextStyle(color: Colors.black87),
                             decoration: _inputDecoration('Password'),
+                            validator: (v) {
+                              if (v == null || v.isEmpty) {
+                                return 'Password is required';
+                              }
+                              if (v.length < 8) {
+                                return 'Password must be at least 8 characters';
+                              }
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 14),
+
+                          // ── Phone Number ───────────────────
                           _buildLabel('Phone Number'),
                           const SizedBox(height: 6),
                           Row(
@@ -383,8 +449,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                         const EdgeInsets.symmetric(
                                             horizontal: 8, vertical: 12),
                                     border: OutlineInputBorder(
-                                      borderRadius:
-                                          BorderRadius.circular(8),
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
                                     filled: true,
                                     fillColor: Colors.grey[300],
@@ -394,15 +459,25 @@ class _RegistrationPageState extends State<RegistrationPage> {
                               const SizedBox(width: 10),
                               Expanded(
                                 child: TextFormField(
-                                  style: const TextStyle(color: Colors.black87), // ← forces black text in any theme
+                                  controller: _phoneController,
+                                  style: const TextStyle(color: Colors.black87),
                                   keyboardType: TextInputType.phone,
-                                  decoration:
-                                      _inputDecoration('XXXXXXXXX'),
+                                  decoration: _inputDecoration('XXXXXXXXX'),
+                                  validator: (v) {
+                                    if (v != null &&
+                                        v.isNotEmpty &&
+                                        v.length != 9) {
+                                      return 'Enter a valid 9-digit number';
+                                    }
+                                    return null;
+                                  },
                                 ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 24),
+
+                          // ── Register button ────────────────
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
@@ -410,8 +485,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF1A3A5C),
                                 disabledBackgroundColor: Colors.grey[300],
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 14),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
@@ -436,6 +511,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
                             ),
                           ),
                           const SizedBox(height: 16),
+
+                          // ── Login link ─────────────────────
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
