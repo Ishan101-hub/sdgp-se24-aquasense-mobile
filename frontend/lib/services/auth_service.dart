@@ -1,33 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthService {
-  // ── Platform-aware base URL ────────────────────────────
-  static String get baseUrl {
-    if (kIsWeb) return 'http://localhost:8000/auth';
-    return 'http://10.0.2.2:8000/auth';
-  }
-
-  static String get _apiBase {
-    if (kIsWeb) return 'http://localhost:8000';
-    return 'http://10.0.2.2:8000';
-  }
-
+  static const String baseUrl = 'http://localhost:8000/auth';
   static const _storage = FlutterSecureStorage();
-
-  // ── Safely parse FastAPI error detail ─────────────────
-  static String _parseError(dynamic detail, String fallback) {
-    if (detail == null) return fallback;
-    if (detail is String) return detail;
-    if (detail is List) {
-      return detail
-          .map((e) => e is Map ? (e['msg'] ?? e.toString()) : e.toString())
-          .join(', ');
-    }
-    return fallback;
-  }
 
   // ── Save / retrieve tokens ─────────────────────────────
   static Future<void> saveTokens(String access, String refresh) async {
@@ -61,11 +39,14 @@ class AuthService {
           if (phone != null && phone.isNotEmpty) 'phone': phone,
         }),
       );
+
       final data = jsonDecode(response.body);
+
       if (response.statusCode == 200) {
         return {'success': true, 'message': data['message']};
       }
-      return {'success': false, 'message': _parseError(data['detail'], 'Registration failed')};
+
+      return {'success': false, 'message': data['detail'] ?? 'Registration failed'};
     } catch (e) {
       return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
     }
@@ -82,11 +63,14 @@ class AuthService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email, 'otp': otp}),
       );
+
       final data = jsonDecode(response.body);
+
       if (response.statusCode == 200) {
         return {'success': true, 'message': data['message']};
       }
-      return {'success': false, 'message': _parseError(data['detail'], 'OTP verification failed')};
+
+      return {'success': false, 'message': data['detail'] ?? 'OTP verification failed'};
     } catch (e) {
       return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
     }
@@ -99,11 +83,14 @@ class AuthService {
         Uri.parse('$baseUrl/resend-otp?email=${Uri.encodeComponent(email)}'),
         headers: {'Content-Type': 'application/json'},
       );
+
       final data = jsonDecode(response.body);
+
       if (response.statusCode == 200) {
         return {'success': true, 'message': data['message']};
       }
-      return {'success': false, 'message': _parseError(data['detail'], 'Failed to resend OTP')};
+
+      return {'success': false, 'message': data['detail'] ?? 'Failed to resend OTP'};
     } catch (e) {
       return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
     }
@@ -120,7 +107,9 @@ class AuthService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email, 'password': password}),
       );
+
       final data = jsonDecode(response.body);
+
       if (response.statusCode == 200) {
         await saveTokens(data['access_token'], data['refresh_token']);
         return {
@@ -129,7 +118,8 @@ class AuthService {
           'message': data['message'] ?? '',
         };
       }
-      return {'success': false, 'message': _parseError(data['detail'], 'Login failed')};
+
+      return {'success': false, 'message': data['detail'] ?? 'Login failed'};
     } catch (e) {
       return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
     }
@@ -143,11 +133,14 @@ class AuthService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email}),
       );
+
       final data = jsonDecode(response.body);
+
       if (response.statusCode == 200) {
         return {'success': true, 'message': data['message']};
       }
-      return {'success': false, 'message': _parseError(data['detail'], 'Failed to send OTP')};
+
+      return {'success': false, 'message': data['detail'] ?? 'Failed to send OTP'};
     } catch (e) {
       return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
     }
@@ -164,76 +157,22 @@ class AuthService {
         Uri.parse('$baseUrl/reset-password'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'email':            email,
-          'otp':              otp,
-          'new_password':     newPassword,
-          'confirm_password': newPassword,
+          'email': email,
+          'otp': otp,
+          'new_password': newPassword,
+          'confirm_password': newPassword, // required by ResetPasswordSchema
         }),
       );
+
       final data = jsonDecode(response.body);
+
       if (response.statusCode == 200) {
         return {'success': true, 'message': data['message']};
       }
-      return {'success': false, 'message': _parseError(data['detail'], 'Password reset failed')};
+
+      return {'success': false, 'message': data['detail'] ?? 'Password reset failed'};
     } catch (e) {
       return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
-    }
-  }
-
-  // ── Save Terms ─────────────────────────────────────────
-  // Calls POST /terms/save with the access token.
-  // Must be called after login so the token is available.
-  static Future<Map<String, dynamic>> saveTerms() async {
-    try {
-      final token = await getAccessToken();
-      if (token == null) {
-        return {'success': false, 'message': 'Not authenticated. Please log in again.'};
-      }
-      final response = await http.post(
-        Uri.parse('$_apiBase/terms/save'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({'terms_of_service': true}),
-      );
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return {'success': true, 'message': data['message']};
-      }
-      return {'success': false, 'message': _parseError(data['detail'], 'Failed to save terms')};
-    } catch (e) {
-      return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
-    }
-  }
-
-  // ── Check Terms ────────────────────────────────────────
-  // Calls GET /terms/check — returns whether the user has
-  // already accepted terms. Used on login to decide whether
-  // to show the Terms screen or go straight to Home.
-  static Future<Map<String, dynamic>> checkTerms() async {
-    try {
-      final token = await getAccessToken();
-      if (token == null) {
-        return {'success': false, 'terms_completed': false};
-      }
-      final response = await http.get(
-        Uri.parse('$_apiBase/terms/check'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return {
-          'success': true,
-          'terms_completed': data['terms_completed'] ?? false,
-        };
-      }
-      return {'success': false, 'terms_completed': false};
-    } catch (e) {
-      return {'success': false, 'terms_completed': false};
     }
   }
 
@@ -257,11 +196,201 @@ class AuthService {
     }
   }
 
+  // ── Verify 2FA after login ─────────────────────────────
+  static Future<Map<String, dynamic>> verify2FALogin(String otp) async {
+    try {
+      final token = await getAccessToken();
+      final response = await http.post(
+        Uri.parse('http://localhost:8000/auth/2fa/verify-login'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'otp': otp}),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'message': data['message']};
+      }
+
+      return {'success': false, 'message': data['detail'] ?? '2FA verification failed'};
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
+    }
+  }
+
+  // ── Get Security Settings ──────────────────────────────
+  static Future<Map<String, dynamic>> getSecuritySettings() async {
+    try {
+      final token = await getAccessToken();
+      final response = await http.get(
+        Uri.parse('http://localhost:8000/security/settings'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'two_factor_enabled':   data['two_factor_enabled'],
+          'login_alerts_enabled': data['login_alerts_enabled'],
+          'auto_lock_minutes':    data['auto_lock_minutes'],
+        };
+      }
+
+      return {'success': false, 'message': data['detail'] ?? 'Failed to load settings'};
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
+    }
+  }
+
+  // ── Enable 2FA — sends OTP to email ───────────────────
+  static Future<Map<String, dynamic>> enable2FA() async {
+    try {
+      final token = await getAccessToken();
+      final response = await http.post(
+        Uri.parse('http://localhost:8000/security/2fa/enable'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'message': data['message']};
+      }
+
+      return {'success': false, 'message': data['detail'] ?? 'Failed to enable 2FA'};
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
+    }
+  }
+
+  // ── Verify Enable 2FA — submit OTP ────────────────────
+  static Future<Map<String, dynamic>> verifyEnable2FA(String otp) async {
+    try {
+      final token = await getAccessToken();
+      final response = await http.post(
+        Uri.parse('http://localhost:8000/security/2fa/verify-enable'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'otp': otp}),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'message': data['message']};
+      }
+
+      return {'success': false, 'message': data['detail'] ?? 'OTP verification failed'};
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
+    }
+  }
+
+  // ── Disable 2FA — requires password ───────────────────
+  static Future<Map<String, dynamic>> disable2FA(String password) async {
+    try {
+      final token = await getAccessToken();
+      final response = await http.post(
+        Uri.parse('http://localhost:8000/security/2fa/disable'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'password': password}),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'message': data['message']};
+      }
+
+      return {'success': false, 'message': data['detail'] ?? 'Failed to disable 2FA'};
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
+    }
+  }
+
+  // ── Toggle Login Alerts ────────────────────────────────
+  static Future<Map<String, dynamic>> toggleLoginAlerts(bool enabled) async {
+    try {
+      final token = await getAccessToken();
+      final response = await http.post(
+        Uri.parse('http://localhost:8000/security/login-alerts'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'enabled': enabled}),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'message': data['message']};
+      }
+
+      return {'success': false, 'message': data['detail'] ?? 'Failed to update login alerts'};
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
+    }
+  }
+
+  // ── Save Terms ─────────────────────────────────────────
+  static Future<Map<String, dynamic>> saveTerms() async {
+    try {
+      final token = await getAccessToken();
+
+      if (token == null || token.isEmpty) {
+        return {'success': false, 'message': 'You are not logged in. Please log in and try again.'};
+      }
+
+      final response = await http.post(
+        Uri.parse('http://localhost:8000/terms/save'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'terms_of_service': true}),
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => throw Exception('Request timed out. Please try again.'),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'message': data['message']};
+      }
+
+      if (response.statusCode == 401) {
+        return {'success': false, 'message': 'Session expired. Please log in again.'};
+      }
+
+      return {'success': false, 'message': data['detail'] ?? 'Failed to save terms. (${response.statusCode})'};
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
+    }
+  }
+
   // ── Authenticated GET ──────────────────────────────────
   static Future<http.Response> authGet(String endpoint) async {
     final token = await getAccessToken();
     return await http.get(
-      Uri.parse('$_apiBase$endpoint'),
+      Uri.parse('http://localhost:8000$endpoint'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -274,7 +403,7 @@ class AuthService {
       String endpoint, Map<String, dynamic> body) async {
     final token = await getAccessToken();
     return await http.post(
-      Uri.parse('$_apiBase$endpoint'),
+      Uri.parse('http://localhost:8000$endpoint'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
