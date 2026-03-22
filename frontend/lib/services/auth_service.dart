@@ -18,10 +18,6 @@ class AuthService {
   static const _storage = FlutterSecureStorage();
 
   // ── Safely parse FastAPI error detail ─────────────────
-  // FastAPI returns detail as a String on most errors,
-  // but as a List on 422 validation errors e.g.:
-  // [{"loc": ["body","confirm_password"], "msg": "field required"}]
-  // This helper handles both safely.
   static String _parseError(dynamic detail, String fallback) {
     if (detail == null) return fallback;
     if (detail is String) return detail;
@@ -171,7 +167,7 @@ class AuthService {
           'email':            email,
           'otp':              otp,
           'new_password':     newPassword,
-          'confirm_password': newPassword, // ← required by ResetPasswordSchema
+          'confirm_password': newPassword,
         }),
       );
       final data = jsonDecode(response.body);
@@ -181,6 +177,63 @@ class AuthService {
       return {'success': false, 'message': _parseError(data['detail'], 'Password reset failed')};
     } catch (e) {
       return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
+    }
+  }
+
+  // ── Save Terms ─────────────────────────────────────────
+  // Calls POST /terms/save with the access token.
+  // Must be called after login so the token is available.
+  static Future<Map<String, dynamic>> saveTerms() async {
+    try {
+      final token = await getAccessToken();
+      if (token == null) {
+        return {'success': false, 'message': 'Not authenticated. Please log in again.'};
+      }
+      final response = await http.post(
+        Uri.parse('$_apiBase/terms/save'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'terms_of_service': true}),
+      );
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return {'success': true, 'message': data['message']};
+      }
+      return {'success': false, 'message': _parseError(data['detail'], 'Failed to save terms')};
+    } catch (e) {
+      return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
+    }
+  }
+
+  // ── Check Terms ────────────────────────────────────────
+  // Calls GET /terms/check — returns whether the user has
+  // already accepted terms. Used on login to decide whether
+  // to show the Terms screen or go straight to Home.
+  static Future<Map<String, dynamic>> checkTerms() async {
+    try {
+      final token = await getAccessToken();
+      if (token == null) {
+        return {'success': false, 'terms_completed': false};
+      }
+      final response = await http.get(
+        Uri.parse('$_apiBase/terms/check'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'terms_completed': data['terms_completed'] ?? false,
+        };
+      }
+      return {'success': false, 'terms_completed': false};
+    } catch (e) {
+      return {'success': false, 'terms_completed': false};
     }
   }
 

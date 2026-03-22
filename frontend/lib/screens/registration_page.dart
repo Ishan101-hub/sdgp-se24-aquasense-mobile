@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'terms_screen.dart'; // ← ADDED
 import '../services/auth_service.dart';
 
 class RegistrationPage extends StatefulWidget {
@@ -246,12 +247,34 @@ class _RegistrationPageState extends State<RegistrationPage> {
                                       () => _isVerifyingOtp = false);
 
                                   if (result['success']) {
-                                    Navigator.pop(ctx);
-                                    Navigator.pushNamedAndRemoveUntil(
-                                      context,
-                                      '/home',
-                                      (route) => false,
+                                    // ── CHANGED: go to Terms screen ──────
+                                    // User must accept terms before
+                                    // accessing the home screen.
+                                    // We log them in first to get a token,
+                                    // then navigate to TermsScreen.
+                                    final loginResult = await AuthService.login(
+                                      email:    _emailController.text.trim(),
+                                      password: _passwordController.text,
                                     );
+
+                                    Navigator.pop(ctx); // close OTP dialog
+
+                                    if (loginResult['success']) {
+                                      Navigator.pushAndRemoveUntil(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => const TermsScreen(),
+                                        ),
+                                        (route) => false,
+                                      );
+                                    } else {
+                                      // Login failed — send to login page
+                                      Navigator.pushNamedAndRemoveUntil(
+                                        context,
+                                        '/login',
+                                        (route) => false,
+                                      );
+                                    }
                                   } else {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
