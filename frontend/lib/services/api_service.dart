@@ -1,74 +1,83 @@
-// import 'dart:convert';
-// import 'dart:io';
-// import 'package:http/http.dart' as http;
-// import 'package:path_provider/path_provider.dart';
-// import '../models/usage_summary.dart';
-// import '../services/auth_storage.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/usage_summary.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
-// class ApiService {
-//   // ── Change this to your actual server IP/URL ──────────────────────
-//   // If testing on a physical device with a local FastAPI server:
-//   // Use your PC's local IP e.g. 'http://192.168.1.5:8000'
-//   // If deployed: 'https://your-domain.com'
-//   static const String baseUrl = 'http://192.168.1.5:8000';
+class ApiService {
+  // ── Change this to your FastAPI server IP ──
+  // Physical device + local PC: use your PC's WiFi IP e.g. 192.168.1.5
+  // Deployed server: use your domain e.g. https://aquasense.com
+  static const String baseUrl = 'http://192.168.1.10:8000';
 
-//   // ── Usage Summary ─────────────────────────────────────────────────
-//   Future<UsageSummary> fetchUsageSummary({
-//     required int year,
-//     required int month,
-//   }) async {
-//     final token = await AuthStorage.getToken();
+  // ── Get saved JWT token ───
+  Future<String?> _getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('auth_token');
+  }
 
-//     final uri = Uri.parse(
-//       '$baseUrl/usage/summary?year=$year&month=$month',
-//     );
+  // ── Fetch usage summary from backend ───
+  Future<UsageSummary> fetchUsageSummary({
+    required int year,
+    required int month,
+  }) async {
+    final token = await _getToken();
 
-//     final response = await http.get(
-//       uri,
-//       headers: {'Authorization': 'Bearer $token'},
-//     );
+    final uri = Uri.parse('$baseUrl/usage/summary?year=$year&month=$month');
 
-//     if (response.statusCode == 200) {
-//       return UsageSummary.fromJson(jsonDecode(response.body));
-//     } else {
-//       throw Exception('Failed to load usage data: ${response.statusCode}');
-//     }
-//   }
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
 
-//   // ── Monthly Report PDF Download ───────────────────────────────────
-//   Future<File> downloadMonthlyReport({
-//     required int year,
-//     required int month,
-//   }) async {
-//     final token = await AuthStorage.getToken();
+    if (response.statusCode == 200) {
+      return UsageSummary.fromJson(jsonDecode(response.body));
+    } else {
+      throw Exception('Failed to load usage data: ${response.statusCode}');
+    }
+  }
+  // ── Fetch unresolved alert count ───
+Future<int> fetchUnresolvedAlertCount() async {
+  final token = await _getToken();
 
-//     final uri = Uri.parse(
-//       '$baseUrl/reports/monthly?year=$year&month=$month',
-//     );
+  final uri = Uri.parse('$baseUrl/alerts/unresolved-count');
 
-//     final response = await http.get(
-//       uri,
-//       headers: {
-//         'Authorization': 'Bearer $token',
-//         'Accept': 'application/pdf',
-//       },
-//     );
+  final response = await http.get(
+    uri,
+    headers: {'Authorization': 'Bearer $token'},
+  );
 
-//     if (response.statusCode == 200) {
-//       final dir = await getApplicationDocumentsDirectory();
-//       final file = File(
-//         '${dir.path}/aquasense_report_${year}_${month.toString().padLeft(2, '0')}.pdf',
-//       );
-//       await file.writeAsBytes(response.bodyBytes);
-//       return file;
-//     } else {
-//       throw Exception('Failed to generate report: ${response.statusCode}');
-//     }
-//   }
-// }
+  if (response.statusCode == 200) {
+    final data = jsonDecode(response.body);
+    return (data['count'] as num).toInt();
+  } else {
+    throw Exception('Failed to load alert count: ${response.statusCode}');
+  }
+}
 
-// // ## Step 4 — Check if you have `auth_storage.dart`
+// ── Download monthly PDF report ───
+Future<File> downloadMonthlyReport({
+  required int year,
+  required int month,
+}) async {
+  final token = await _getToken();
 
-// // The file imports `AuthStorage` to get the JWT token. Check if you already have it:
-// // ```
-// // lib/services/auth_storage.dart
+  final uri = Uri.parse('$baseUrl/usage/report?year=$year&month=$month');
+
+  final response = await http.get(
+    uri,
+    headers: {'Authorization': 'Bearer $token'},
+  );
+
+  if (response.statusCode == 200) {
+    // Save PDF to temp directory
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/report_${year}_$month.pdf');
+    await file.writeAsBytes(response.bodyBytes);
+    return file;
+  } else {
+    throw Exception('Failed to download report: ${response.statusCode}');
+  }
+}
+}

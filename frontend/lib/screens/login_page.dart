@@ -17,10 +17,11 @@ class _LoginPageState extends State<LoginPage> {
   final _forgotConfirmPasswordController = TextEditingController();
 
   // ── OTP controllers ──────────────────────────────────────
-  final List<TextEditingController> _otpControllers =
-      List.generate(6, (_) => TextEditingController());
-  final List<FocusNode> _otpFocusNodes =
-      List.generate(6, (_) => FocusNode());
+  final List<TextEditingController> _otpControllers = List.generate(
+    6,
+    (_) => TextEditingController(),
+  );
+  final List<FocusNode> _otpFocusNodes = List.generate(6, (_) => FocusNode());
 
   bool _isSendingReset = false;
   bool _isVerifyingOtp = false;
@@ -52,27 +53,27 @@ class _LoginPageState extends State<LoginPage> {
         builder: (ctx, setDialogState) {
           return AlertDialog(
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20)),
+              borderRadius: BorderRadius.circular(20),
+            ),
             contentPadding: EdgeInsets.zero,
             backgroundColor: Colors.white,
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-
                   // ── Header ────────────────────────────────
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 22),
                     decoration: const BoxDecoration(
                       color: Color(0xFF0A1B6F),
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(20)),
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(20),
+                      ),
                     ),
                     child: const Column(
                       children: [
-                        Icon(Icons.lock_reset,
-                            color: Colors.white, size: 36),
+                        Icon(Icons.lock_reset, color: Colors.white, size: 36),
                         SizedBox(height: 8),
                         Text(
                           'Reset Password',
@@ -94,7 +95,6 @@ class _LoginPageState extends State<LoginPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-
                           const Text(
                             'Enter your registered email and a new password. We will send an OTP to verify.',
                             textAlign: TextAlign.center,
@@ -121,13 +121,13 @@ class _LoginPageState extends State<LoginPage> {
                             controller: _forgotEmailController,
                             keyboardType: TextInputType.emailAddress,
                             decoration: _dialogInputDecoration(
-                                'example@gmail.com'),
+                              'example@gmail.com',
+                            ),
                             validator: (v) {
                               if (v == null || v.isEmpty) {
                                 return 'Please enter your email';
                               }
-                              if (!RegExp(r'^[^@]+@[^@]+\.[^@]+')
-                                  .hasMatch(v)) {
+                              if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)) {
                                 return 'Enter a valid email';
                               }
                               return null;
@@ -160,7 +160,8 @@ class _LoginPageState extends State<LoginPage> {
                                   color: Colors.grey,
                                 ),
                                 onPressed: () => setDialogState(
-                                    () => _obscureNew = !_obscureNew),
+                                  () => _obscureNew = !_obscureNew,
+                                ),
                               ),
                             ),
                             validator: (v) {
@@ -199,8 +200,9 @@ class _LoginPageState extends State<LoginPage> {
                                   size: 18,
                                   color: Colors.grey,
                                 ),
-                                onPressed: () => setDialogState(() =>
-                                    _obscureConfirm = !_obscureConfirm),
+                                onPressed: () => setDialogState(
+                                  () => _obscureConfirm = !_obscureConfirm,
+                                ),
                               ),
                             ),
                             validator: (v) {
@@ -225,18 +227,21 @@ class _LoginPageState extends State<LoginPage> {
                                   : () async {
                                       if (!(forgotFormKey.currentState
                                               ?.validate() ??
-                                          false)) return;
+                                          false))
+                                        return;
 
                                       setDialogState(
-                                          () => _isSendingReset = true);
+                                        () => _isSendingReset = true,
+                                      );
 
                                       // TODO: call backend forgot password endpoint
-                                      // e.g. await ApiService.sendResetOtp(email, newPassword);
-                                      await Future.delayed(const Duration(
-                                          seconds: 1)); // simulate
+                                      await Future.delayed(
+                                        const Duration(seconds: 1),
+                                      ); // simulate
 
                                       setDialogState(
-                                          () => _isSendingReset = false);
+                                        () => _isSendingReset = false,
+                                      );
 
                                       Navigator.pop(ctx); // close this dialog
                                       _showResetOtpDialog(); // open OTP dialog
@@ -245,7 +250,8 @@ class _LoginPageState extends State<LoginPage> {
                                 backgroundColor: const Color(0xFF0A1B6F),
                                 disabledBackgroundColor: Colors.grey[300],
                                 padding: const EdgeInsets.symmetric(
-                                    vertical: 14),
+                                  vertical: 14,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
@@ -279,7 +285,9 @@ class _LoginPageState extends State<LoginPage> {
                               child: const Text(
                                 'Cancel',
                                 style: TextStyle(
-                                    color: Colors.grey, fontSize: 13),
+                                  color: Colors.grey,
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
                           ),
@@ -309,26 +317,30 @@ class _LoginPageState extends State<LoginPage> {
         builder: (ctx, setDialogState) {
           return AlertDialog(
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20)),
+              borderRadius: BorderRadius.circular(20),
+            ),
             contentPadding: EdgeInsets.zero,
             backgroundColor: Colors.white,
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-
                 // ── Header ──────────────────────────────────
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 22),
                   decoration: const BoxDecoration(
                     color: Color(0xFF0A1B6F),
-                    borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(20)),
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(20),
+                    ),
                   ),
                   child: const Column(
                     children: [
-                      Icon(Icons.mark_email_read_outlined,
-                          color: Colors.white, size: 36),
+                      Icon(
+                        Icons.mark_email_read_outlined,
+                        color: Colors.white,
+                        size: 36,
+                      ),
                       SizedBox(height: 8),
                       Text(
                         'Verify OTP',
@@ -347,7 +359,6 @@ class _LoginPageState extends State<LoginPage> {
                   padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
                   child: Column(
                     children: [
-
                       const Text(
                         'A 6-digit OTP has been sent to your email. Enter it below to reset your password.',
                         textAlign: TextAlign.center,
@@ -360,56 +371,80 @@ class _LoginPageState extends State<LoginPage> {
 
                       const SizedBox(height: 20),
 
-                      // ── 6 OTP boxes ──────────────────────
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: List.generate(6, (i) {
-                          return SizedBox(
-                            width: 42,
-                            height: 50,
-                            child: TextField(
-                              controller: _otpControllers[i],
-                              focusNode: _otpFocusNodes[i],
-                              keyboardType: TextInputType.number,
-                              textAlign: TextAlign.center,
-                              maxLength: 1,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF0A1B6F),
-                              ),
-                              decoration: InputDecoration(
-                                counterText: '',
-                                contentPadding: EdgeInsets.zero,
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFF0A1B6F),
-                                    width: 1.5,
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFF0A1B6F),
-                                    width: 2.5,
-                                  ),
-                                ),
-                                filled: true,
-                                fillColor: const Color(0xFFEEF2FF),
-                              ),
-                              onChanged: (val) {
-                                if (val.isNotEmpty && i < 5) {
-                                  FocusScope.of(ctx)
-                                      .requestFocus(_otpFocusNodes[i + 1]);
-                                } else if (val.isEmpty && i > 0) {
-                                  FocusScope.of(ctx)
-                                      .requestFocus(_otpFocusNodes[i - 1]);
-                                }
-                              },
-                            ),
+                      // ── 6 OTP boxes (dynamic sizing) ─────
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          // Total gaps between 6 boxes = 5 gaps
+                          const int boxCount = 6;
+                          const double gap = 8.0;
+                          final double boxSize =
+                              (constraints.maxWidth - (boxCount - 1) * gap) /
+                              boxCount;
+                          final double boxHeight = boxSize * 1.2;
+                          // Clamp to avoid huge boxes on tablets
+                          final double clampedSize = boxSize.clamp(32.0, 56.0);
+                          final double clampedHeight = boxHeight.clamp(
+                            40.0,
+                            64.0,
                           );
-                        }),
+                          final double fontSize = (clampedSize * 0.45).clamp(
+                            14.0,
+                            24.0,
+                          );
+
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: List.generate(boxCount, (i) {
+                              return SizedBox(
+                                width: clampedSize,
+                                height: clampedHeight,
+                                child: TextField(
+                                  controller: _otpControllers[i],
+                                  focusNode: _otpFocusNodes[i],
+                                  keyboardType: TextInputType.number,
+                                  textAlign: TextAlign.center,
+                                  maxLength: 1,
+                                  style: TextStyle(
+                                    fontSize: fontSize,
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF0A1B6F),
+                                  ),
+                                  decoration: InputDecoration(
+                                    counterText: '',
+                                    contentPadding: EdgeInsets.zero,
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFF0A1B6F),
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFF0A1B6F),
+                                        width: 2.5,
+                                      ),
+                                    ),
+                                    filled: true,
+                                    fillColor: const Color(0xFFEEF2FF),
+                                  ),
+                                  onChanged: (val) {
+                                    if (val.isNotEmpty && i < 5) {
+                                      FocusScope.of(
+                                        ctx,
+                                      ).requestFocus(_otpFocusNodes[i + 1]);
+                                    } else if (val.isEmpty && i > 0) {
+                                      FocusScope.of(
+                                        ctx,
+                                      ).requestFocus(_otpFocusNodes[i - 1]);
+                                    }
+                                  },
+                                ),
+                              );
+                            }),
+                          );
+                        },
                       ),
 
                       const SizedBox(height: 8),
@@ -452,34 +487,33 @@ class _LoginPageState extends State<LoginPage> {
                                       .join();
 
                                   if (otp.length < 6) {
-                                    ScaffoldMessenger.of(context)
-                                        .showSnackBar(
+                                    ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
                                         content: Text(
-                                            'Please enter the full 6-digit OTP.'),
+                                          'Please enter the full 6-digit OTP.',
+                                        ),
                                         backgroundColor: Colors.red,
                                       ),
                                     );
                                     return;
                                   }
 
-                                  setDialogState(
-                                      () => _isVerifyingOtp = true);
+                                  setDialogState(() => _isVerifyingOtp = true);
 
                                   // TODO: call backend OTP verify + password reset endpoint
-                                  // e.g. await ApiService.verifyResetOtp(email, otp, newPassword);
-                                  await Future.delayed(const Duration(
-                                      seconds: 1)); // simulate
+                                  await Future.delayed(
+                                    const Duration(seconds: 1),
+                                  ); // simulate
 
-                                  setDialogState(
-                                      () => _isVerifyingOtp = false);
+                                  setDialogState(() => _isVerifyingOtp = false);
 
                                   Navigator.pop(ctx); // close OTP dialog
 
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text(
-                                          'Password reset successfully!'),
+                                        'Password reset successfully!',
+                                      ),
                                       backgroundColor: Color(0xFF0A1B6F),
                                     ),
                                   );
@@ -488,16 +522,15 @@ class _LoginPageState extends State<LoginPage> {
                                   Navigator.pushAndRemoveUntil(
                                     context,
                                     MaterialPageRoute(
-                                        builder: (_) =>
-                                            const HomeScreen()),
+                                      builder: (_) => const HomeScreen(),
+                                    ),
                                     (route) => false,
                                   );
                                 },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF0A1B6F),
                             disabledBackgroundColor: Colors.grey[300],
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 14),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
@@ -528,8 +561,7 @@ class _LoginPageState extends State<LoginPage> {
                         onPressed: () => Navigator.pop(ctx),
                         child: const Text(
                           'Cancel',
-                          style:
-                              TextStyle(color: Colors.grey, fontSize: 13),
+                          style: TextStyle(color: Colors.grey, fontSize: 13),
                         ),
                       ),
 
@@ -546,14 +578,11 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   // ── Input decoration helper for dialogs ──────────────────
-  InputDecoration _dialogInputDecoration(String hint,
-      {Widget? suffix}) {
+  InputDecoration _dialogInputDecoration(String hint, {Widget? suffix}) {
     return InputDecoration(
       hintText: hint,
-      hintStyle:
-          TextStyle(color: Colors.grey[400], fontSize: 13),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
         borderSide: BorderSide(color: Colors.grey[300]!),
@@ -564,8 +593,7 @@ class _LoginPageState extends State<LoginPage> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(
-            color: Color(0xFF0A1B6F), width: 1.5),
+        borderSide: const BorderSide(color: Color(0xFF0A1B6F), width: 1.5),
       ),
       filled: true,
       fillColor: Colors.white,
@@ -586,9 +614,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
           ),
-          Container(
-            color: Colors.white.withOpacity(0.15),
-          ),
+          Container(color: Colors.white.withOpacity(0.15)),
           SafeArea(
             child: SingleChildScrollView(
               child: Column(
@@ -604,10 +630,11 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 40),
                   Container(
-                    margin:
-                        const EdgeInsets.symmetric(horizontal: 24),
+                    margin: const EdgeInsets.symmetric(horizontal: 24),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 32),
+                      horizontal: 24,
+                      vertical: 32,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.75),
                       borderRadius: BorderRadius.circular(20),
@@ -650,19 +677,24 @@ class _LoginPageState extends State<LoginPage> {
                             decoration: InputDecoration(
                               hintText: 'example@gmail.com',
                               hintStyle: TextStyle(
-                                  color: Colors.grey[400], fontSize: 13),
-                              contentPadding:
-                                  const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 12),
+                                color: Colors.grey[400],
+                                fontSize: 13,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide:
-                                    BorderSide(color: Colors.grey[300]!),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide:
-                                    BorderSide(color: Colors.grey[300]!),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
                               ),
                               filled: true,
                               fillColor: Colors.white,
@@ -671,8 +703,8 @@ class _LoginPageState extends State<LoginPage> {
                               if (value == null || value.isEmpty) {
                                 return 'Please enter your email';
                               } else if (!RegExp(
-                                      r'^[^@]+@[^@]+\.[^@]+')
-                                  .hasMatch(value)) {
+                                r'^[^@]+@[^@]+\.[^@]+',
+                              ).hasMatch(value)) {
                                 return 'Please enter a valid email';
                               }
                               return null;
@@ -694,19 +726,24 @@ class _LoginPageState extends State<LoginPage> {
                             decoration: InputDecoration(
                               hintText: 'Password',
                               hintStyle: TextStyle(
-                                  color: Colors.grey[400], fontSize: 13),
-                              contentPadding:
-                                  const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 12),
+                                color: Colors.grey[400],
+                                fontSize: 13,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide:
-                                    BorderSide(color: Colors.grey[300]!),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide:
-                                    BorderSide(color: Colors.grey[300]!),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
                               ),
                               filled: true,
                               fillColor: Colors.white,
@@ -723,13 +760,11 @@ class _LoginPageState extends State<LoginPage> {
                           const SizedBox(height: 6),
                           Center(
                             child: TextButton(
-                              // ── Forgot Password tapped ──
                               onPressed: _showForgotPasswordDialog,
                               style: TextButton.styleFrom(
                                 padding: EdgeInsets.zero,
                                 minimumSize: Size.zero,
-                                tapTargetSize:
-                                    MaterialTapTargetSize.shrinkWrap,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
                               child: const Text(
                                 'Forgot Password?',
@@ -751,19 +786,18 @@ class _LoginPageState extends State<LoginPage> {
                                   Navigator.pushReplacement(
                                     context,
                                     MaterialPageRoute(
-                                        builder: (_) =>
-                                            const HomeScreen()),
+                                      builder: (_) => const HomeScreen(),
+                                    ),
                                   );
                                 }
                               },
                               style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    const Color(0xFF1A3A5C),
+                                backgroundColor: const Color(0xFF1A3A5C),
                                 padding: const EdgeInsets.symmetric(
-                                    vertical: 14),
+                                  vertical: 14,
+                                ),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(10),
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
                                 elevation: 2,
                               ),
@@ -796,8 +830,7 @@ class _LoginPageState extends State<LoginPage> {
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  border: Border.all(
-                                      color: Colors.grey[300]!),
+                                  border: Border.all(color: Colors.grey[300]!),
                                   color: Colors.white,
                                 ),
                                 child: Image.asset(
@@ -810,23 +843,21 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           const SizedBox(height: 16),
                           Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.center,
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
                                 "Don't have an account?",
                                 style: TextStyle(
-                                    color: Colors.grey[700],
-                                    fontSize: 13),
+                                  color: Colors.grey[700],
+                                  fontSize: 13,
+                                ),
                               ),
                               TextButton(
                                 onPressed: () {
-                                  Navigator.pushNamed(
-                                      context, '/register');
+                                  Navigator.pushNamed(context, '/register');
                                 },
                                 style: TextButton.styleFrom(
-                                  padding:
-                                      const EdgeInsets.only(left: 4),
+                                  padding: const EdgeInsets.only(left: 4),
                                   minimumSize: Size.zero,
                                   tapTargetSize:
                                       MaterialTapTargetSize.shrinkWrap,

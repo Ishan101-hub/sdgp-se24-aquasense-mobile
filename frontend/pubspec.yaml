@@ -10,14 +10,15 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  fl_chart: ^1.1.1 
-  http: ^1.2.0 
-
+  fl_chart: ^1.1.1
+  http: ^1.2.1
   cupertino_icons: ^1.0.8
   image_picker: ^1.1.2
   provider: ^6.1.2
   screen_brightness: ^0.2.2+1
   shared_preferences: ^2.2.3
+  open_filex: ^4.3.4
+  path_provider: ^2.1.2
 
 dev_dependencies:
   flutter_test:
