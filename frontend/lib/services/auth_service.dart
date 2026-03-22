@@ -196,6 +196,92 @@ class AuthService {
     }
   }
 
+  // ── Get Profile ────────────────────────────────────────
+  static Future<Map<String, dynamic>> getProfile() async {
+    try {
+      final token = await getAccessToken();
+      final response = await http.get(
+        Uri.parse('http://localhost:8000/user/profile'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, ...data};
+      }
+
+      return {'success': false, 'message': data['detail'] ?? 'Failed to load profile'};
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
+    }
+  }
+
+  // ── Update Profile ─────────────────────────────────────
+  static Future<Map<String, dynamic>> updateProfile({
+    String? name,
+    String? phone,
+    String? address,
+    String? profilePicture,
+  }) async {
+    try {
+      final token = await getAccessToken();
+
+      final body = <String, dynamic>{};
+      if (name != null)           body['name']            = name;
+      if (phone != null)          body['phone']           = phone;
+      if (address != null)        body['address']         = address;
+      if (profilePicture != null) body['profile_picture'] = profilePicture;
+
+      final response = await http.put(
+        Uri.parse('http://localhost:8000/user/update-profile'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'message': data['message']};
+      }
+
+      return {'success': false, 'message': data['detail'] ?? 'Failed to update profile'};
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
+    }
+  }
+
+  // ── Delete Account ─────────────────────────────────────
+  static Future<Map<String, dynamic>> deleteAccount() async {
+    try {
+      final token = await getAccessToken();
+      final response = await http.delete(
+        Uri.parse('http://localhost:8000/user/delete-account'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        await clearTokens();
+        return {'success': true, 'message': data['message']};
+      }
+
+      return {'success': false, 'message': data['detail'] ?? 'Failed to delete account'};
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
+    }
+  }
+
   // ── Verify 2FA after login ─────────────────────────────
   static Future<Map<String, dynamic>> verify2FALogin(String otp) async {
     try {
