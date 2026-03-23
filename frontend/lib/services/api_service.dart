@@ -72,3 +72,65 @@
 // // The file imports `AuthStorage` to get the JWT token. Check if you already have it:
 // // ```
 // // lib/services/auth_storage.dart
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+class ApiService {
+  static const String baseUrl = "http://192.168.1.XX:8000";
+
+  String? _token;
+
+  void setToken(String token) {
+    _token = token;
+  }
+
+  Map<String, String> get _headers => {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer $_token",
+  };
+
+  // ───── Dashboard ─────
+  Future<Map<String, dynamic>> getDashboardToday() async {
+    final response = await http.get(
+      Uri.parse("$baseUrl/mobile/dashboard/today"),
+      headers: _headers,
+    );
+    return jsonDecode(response.body);
+  }
+
+  // ───── Zones Daily ─────
+  Future<List<dynamic>> getZonesDaily() async {
+    final response = await http.get(
+      Uri.parse("$baseUrl/mobile/zones/daily"),
+      headers: _headers,
+    );
+    return jsonDecode(response.body);
+  }
+
+  // ───── Flow Rate ─────
+  Future<Map<String, dynamic>> getFlowRate() async {
+    final response = await http.get(
+      Uri.parse("$baseUrl/mobile/flowrate"),
+      headers: _headers,
+    );
+    return jsonDecode(response.body);
+  }
+
+  // ───── Alerts ─────
+  Future<Map<String, dynamic>> getAlerts() async {
+    final response = await http.get(
+      Uri.parse("$baseUrl/mobile/alerts"),
+      headers: _headers,
+    );
+    return jsonDecode(response.body);
+  }
+
+  // ───── Leakages ─────
+  Future<List<dynamic>> getLeakages() async {
+    final response = await http.get(
+      Uri.parse("$baseUrl/mobile/leakages"),
+      headers: _headers,
+    );
+    return jsonDecode(response.body);
+  }
+}
