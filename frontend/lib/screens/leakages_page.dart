@@ -106,19 +106,19 @@ class _LeakagesPageState extends State<LeakagesPage> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // ── Auto-generate leak notifications from live data ──
-    final List<AppNotification> notifications = _zones
-        .where((z) => z.hasLeak && z.isValveOpen && z.isActive)
-        .map((z) => AppNotification(
-              title:          'Leak Detected: ${z.name}',
-              message:        'A water leak has been detected in the ${z.name} '
-                              'pipeline. IN: ${z.inFlow.toStringAsFixed(1)} L/min, '
-                              'OUT: ${z.outFlow.toStringAsFixed(1)} L/min.',
-              type:           'leak',
-              time:           'Just now',
-              targetTabIndex: 1,
-            ))
-        .toList();
+    // // ── Auto-generate leak notifications from live data ──
+    // final List<AppNotification> notifications = _zones
+    //     .where((z) => z.hasLeak && z.isValveOpen && z.isActive)
+    //     .map((z) => AppNotification(
+    //           title:          'Leak Detected: ${z.name}',
+    //           message:        'A water leak has been detected in the ${z.name} '
+    //                           'pipeline. IN: ${z.inFlow.toStringAsFixed(1)} L/min, '
+    //                           'OUT: ${z.outFlow.toStringAsFixed(1)} L/min.',
+    //           type:           'leak',
+    //           time:           'Just now',
+    //           targetTabIndex: 1,
+    //         ))
+    //     .toList();
 
     return Scaffold(
       backgroundColor: isDark
@@ -222,8 +222,8 @@ class _LeakagesPageState extends State<LeakagesPage> {
               bottom: 16,
               right: 16,
               child: BellButton(
-                hasNotification: notifications.isNotEmpty,
-                notifications:   notifications,
+                // hasNotification: notifications.isNotEmpty,
+                // notifications:   notifications,
                 onSwitchTab:     widget.onSwitchTab,
               ),
             ),
