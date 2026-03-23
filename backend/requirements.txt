@@ -27,3 +27,5 @@ slowapi
 
 # HTTP client (Google OAuth)
 httpx
+
+email-validator

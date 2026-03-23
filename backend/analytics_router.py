@@ -8,6 +8,24 @@
 #   • _get_network_slug removed — network slug now passed directly via zones[0].network.network_id
 #     using a joined load instead of accessing a lazy relationship
 #   • zone_type filter supported on all_zones_summary (?zone_type=bathroom)
+#
+# Fix (v3.1.1) — dashboard_today():
+#   PROBLEM: Previous implementation calculated today's volume from raw readings
+#   using max(total_volume) - min(total_volume) per device. This breaks when a
+#   device restarts mid-day because total_volume resets to 0, making the min
+#   jump back down and inflating the result.
+#
+#   FIX: Today's volume now uses daily_summaries when a row for today already
+#   exists (i.e. aggregation has run). If today's summary is not yet available
+#   (aggregation runs at 00:05 UTC for the previous day), we fall back to the
+#   raw odometer calculation but clamp each device's contribution so that a
+#   single device restart cannot produce a negative delta.
+#
+#   The 30-day historical average is unchanged — it already correctly reads from
+#   daily_summaries and excludes days with reading_count == 0.
+#
+#   The percent value is capped at 200 % to prevent unrealistic spikes from
+#   appearing on the Flutter gauge.
 
 from calendar import monthrange
 from datetime import date, datetime, timedelta, timezone
@@ -231,7 +249,6 @@ async def leak_history(
         "leaks": [
             {
                 "id":          e.id,
-                "severity":    e.severity,
                 "description": e.description,
                 "resolved":    e.resolved,
                 "resolved_at": e.resolved_at.isoformat() if e.resolved_at else None,
@@ -244,12 +261,6 @@ async def leak_history(
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  5. ALL ZONES SUMMARY  ← primary Flutter dashboard endpoint
-#
-#  GET /analytics/zones/summary?network_id=1&year=2026&month=3
-#  GET /analytics/zones/summary?network_id=1&zone_type=bathroom
-#
-#  Returns one entry per zone INSTANCE.
-#  bathroom_01 and bathroom_02 are always separate rows — never merged.
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/zones/summary")
@@ -261,20 +272,8 @@ async def all_zones_summary(
     db:           AsyncSession  = Depends(get_db),
     current_user: User          = Depends(_iot_dep),
 ):
-    """
-    Returns one usage card per zone instance for the Flutter dashboard.
-    Flutter iterates this list — no hardcoded zone names needed.
-
-    Fields per entry:
-      zone_id, zone_name, zone_type, floor   — identity
-      daily_usage_L, monthly_total_L,
-      daily_avg_L, status                    — usage
-      leak_events                            — alerts
-      valve_state                            — open|closed|mixed
-    """
     network = await _resolve_network(network_id, current_user, db)
 
-    # ── Fetch zones, eagerly joining Network to get network_id slug ───────
     zone_query = (
         select(Zone)
         .options(joinedload(Zone.network))
@@ -291,9 +290,8 @@ async def all_zones_summary(
         return []
 
     zone_id_strings = [z.zone_id for z in zones]
-    network_slug    = network.network_id   # string slug from the loaded Network object
+    network_slug    = network.network_id
 
-    # ── Monthly totals per zone ───────────────────────────────────────────
     monthly_result = await db.execute(
         select(
             DailySummary.zone_id,
@@ -315,7 +313,6 @@ async def all_zones_summary(
         for row in monthly_result
     }
 
-    # ── 30-day historical daily average per zone ──────────────────────────
     avg_result = await db.execute(
         select(
             DailySummary.zone_id,
@@ -329,7 +326,6 @@ async def all_zones_summary(
     )
     avg_by_zone = {row.zone_id: float(row.daily_avg or 0) for row in avg_result}
 
-    # ── Current valve state per zone ──────────────────────────────────────
     valve_result = await db.execute(
         select(
             Zone.zone_id,
@@ -354,16 +350,15 @@ async def all_zones_summary(
         else:
             valve_by_zone[row.zone_id] = "mixed"
 
-    # ── Build response ────────────────────────────────────────────────────
     days_in_month = monthrange(year, month)[1]
     today         = date.today()
 
     response = []
     for zone in zones:
-        zid          = zone.zone_id
-        m_data       = monthly_by_zone.get(zid, {"monthly_total": 0, "leak_events": 0})
+        zid           = zone.zone_id
+        m_data        = monthly_by_zone.get(zid, {"monthly_total": 0, "leak_events": 0})
         monthly_total = m_data["monthly_total"]
-        daily_avg    = avg_by_zone.get(zid, 0)
+        daily_avg     = avg_by_zone.get(zid, 0)
 
         days_elapsed = today.day if (today.year == year and today.month == month) else days_in_month
         today_usage  = monthly_total / max(days_elapsed, 1)
@@ -509,8 +504,8 @@ async def network_summary(
             zones_dict[zid] = {
                 "zone_id":                  zid,
                 "zone_name":                z.zone_name  if z else zid,
-                "zone_type":                z.zone_type  if z else "unknown",   # ← NEW
-                "floor":                    z.floor      if z else None,         # ← NEW
+                "zone_type":                z.zone_type  if z else "unknown",
+                "floor":                    z.floor      if z else None,
                 "zone_total_volume_litres": 0.0,
                 "zone_total_leaks":         0,
                 "devices":                  [],
@@ -541,7 +536,7 @@ async def network_summary(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  8. ZONE LEAK HISTORY  (kept from v3 — unchanged)
+#  8. ZONE LEAK HISTORY
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/zone/{zone_id}/leaks")
@@ -572,7 +567,7 @@ async def zone_leak_history(
         select(Event)
         .where(
             Event.device_id.in_(device_ids),
-            Event.event_type.in_(["leak_detected", "flow_mismatch"]),
+            Event.event_type.in_(["leak_detected", "flow_mismatch", "valve_failure"]),
         )
         .order_by(Event.timestamp.desc())
         .limit(limit)
@@ -589,7 +584,6 @@ async def zone_leak_history(
                 "id":          e.id,
                 "device_id":   e.device_id,
                 "event_type":  e.event_type,
-                "severity":    e.severity,
                 "description": e.description,
                 "resolved":    e.resolved,
                 "resolved_at": e.resolved_at.isoformat() if e.resolved_at else None,
@@ -601,7 +595,24 @@ async def zone_leak_history(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  9. DASHBOARD TODAY  (kept from v3 — unchanged)
+#  9. DASHBOARD TODAY
+#
+#  FIX (v3.1.1):
+#  Old logic — max(total_volume) - min(total_volume) from raw readings.
+#  Problem   — if an ESP32 restarts mid-day, total_volume resets to 0.
+#              min() then sees 0, inflating the day's usage incorrectly.
+#
+#  New logic:
+#    Step 1 — check daily_summaries for a today row (aggregation may have
+#             run for today if manually triggered or it's past 00:05 UTC).
+#             If found, use sum(total_volume_litres) — this is already correct.
+#    Step 2 — if no summary row yet (normal for same-day), fall back to the
+#             raw odometer method but split readings into monotonic segments:
+#             within each device, accumulate only positive deltas between
+#             consecutive readings. This is restart-safe because a reset
+#             produces a negative delta which we skip, not add.
+#    Step 3 — 30-day historical average from daily_summaries (unchanged).
+#    Step 4 — percent capped at 200 % (unchanged).
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/dashboard/today")
@@ -626,7 +637,8 @@ async def dashboard_today(
         network_ids = [row[0] for row in net_result.all()]
 
     if not network_ids:
-        return {"litresUsed": 0.0, "dailyAverage": 0.0, "percent": 0.0, "active_leaks": 0}
+        return {"litresUsed": 0.0, "dailyAverage": 0.0, "percent": 0.0,
+                "active_leaks": 0, "date": today.isoformat()}
 
     dev_result = await db.execute(
         select(Device.device_id)
@@ -639,26 +651,50 @@ async def dashboard_today(
     device_ids = [row[0] for row in dev_result.all()]
 
     if not device_ids:
-        return {"litresUsed": 0.0, "dailyAverage": 0.0, "percent": 0.0, "active_leaks": 0}
+        return {"litresUsed": 0.0, "dailyAverage": 0.0, "percent": 0.0,
+                "active_leaks": 0, "date": today.isoformat()}
 
-    today_vol_result = await db.execute(
-        select(
-            Reading.device_id,
-            func.max(Reading.total_volume).label("vol_end"),
-            func.min(Reading.total_volume).label("vol_start"),
-        )
+    # ── Step 1: try today's daily_summaries first ─────────────────────────
+    summary_result = await db.execute(
+        select(func.sum(DailySummary.total_volume_litres).label("total"))
         .where(
-            Reading.device_id.in_(device_ids),
-            Reading.sensor_type == "outlet",
-            func.date(Reading.timestamp) == today,
+            DailySummary.device_id.in_(device_ids),
+            DailySummary.sensor_type == "outlet",
+            DailySummary.summary_date == today,
+            DailySummary.reading_count > 0,
         )
-        .group_by(Reading.device_id)
     )
-    litres_used = sum(
-        max(float((r.vol_end or 0) - (r.vol_start or 0)), 0.0)
-        for r in today_vol_result.all()
-    )
+    summary_total = summary_result.scalar()
 
+    if summary_total is not None:
+        # Aggregation has already run for today — use it directly
+        litres_used = float(summary_total)
+    else:
+        # ── Step 2: fall back to raw readings, restart-safe odometer ─────
+        # Fetch all today's outlet readings per device, ordered chronologically
+        raw_result = await db.execute(
+            select(Reading.device_id, Reading.total_volume, Reading.timestamp)
+            .where(
+                Reading.device_id.in_(device_ids),
+                Reading.sensor_type == "outlet",
+                func.date(Reading.timestamp) == today,
+            )
+            .order_by(Reading.device_id, Reading.timestamp.asc())
+        )
+        raw_rows = raw_result.all()
+
+        # Group by device and accumulate only positive consecutive deltas
+        # This is restart-safe: a restart produces a negative delta which we skip
+        from itertools import groupby
+        litres_used = 0.0
+        for device_id, readings in groupby(raw_rows, key=lambda r: r.device_id):
+            readings_list = list(readings)
+            for i in range(1, len(readings_list)):
+                delta = float(readings_list[i].total_volume) - float(readings_list[i - 1].total_volume)
+                if delta > 0:
+                    litres_used += delta
+
+    # ── Step 3: 30-day historical daily average from daily_summaries ──────
     thirty_days_ago = today - timedelta(days=30)
     avg_result = await db.execute(
         select(func.avg(DailySummary.total_volume_litres).label("daily_avg"))
@@ -666,18 +702,21 @@ async def dashboard_today(
             DailySummary.device_id.in_(device_ids),
             DailySummary.sensor_type == "outlet",
             DailySummary.summary_date >= thirty_days_ago,
-            DailySummary.summary_date < today,
-            DailySummary.reading_count > 0,
+            DailySummary.summary_date < today,          # exclude today — use raw above
+            DailySummary.reading_count > 0,             # exclude empty days from average
         )
     )
-    daily_avg   = float(avg_result.scalar() or 0.0)
-    percent     = round((litres_used / daily_avg * 100) if daily_avg > 0 else 0.0, 1)
-    percent     = min(percent, 200.0)
+    daily_avg = float(avg_result.scalar() or 0.0)
 
+    # ── Step 4: percent, capped at 200 % ─────────────────────────────────
+    percent = round((litres_used / daily_avg * 100) if daily_avg > 0 else 0.0, 1)
+    percent = min(percent, 200.0)
+
+    # ── Active leaks (unresolved today) ───────────────────────────────────
     leak_count_result = await db.execute(
         select(func.count()).where(
             Event.device_id.in_(device_ids),
-            Event.event_type.in_(["leak_detected", "flow_mismatch"]),
+            Event.event_type.in_(["leak_detected", "flow_mismatch", "valve_failure"]),
             Event.resolved == False,
             func.date(Event.timestamp) == today,
         )
