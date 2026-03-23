@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/custom_bottom_nav.dart';
+import '../services/auth_service.dart';
 import 'settings_screen.dart';
 import 'usage_screen.dart';
 import 'services_screen.dart';
@@ -18,36 +19,19 @@ class _HomeScreenState extends State<HomeScreen>
   int selectedIndex = 0;
   bool _showNotifPanel = false;
   String _selectedDistrict = 'Colombo';
+  bool _isSavingDistrict = false;
 
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
 
   final List<String> _sriLankaDistricts = [
-    'Ampara',
-    'Anuradhapura',
-    'Badulla',
-    'Batticaloa',
-    'Colombo',
-    'Galle',
-    'Gampaha',
-    'Hambantota',
-    'Jaffna',
-    'Kalutara',
-    'Kandy',
-    'Kegalle',
-    'Kilinochchi',
-    'Kurunegala',
-    'Mannar',
-    'Matale',
-    'Matara',
-    'Monaragala',
-    'Mullaitivu',
-    'Nuwara Eliya',
-    'Polonnaruwa',
-    'Puttalam',
-    'Ratnapura',
-    'Trincomalee',
+    'Ampara', 'Anuradhapura', 'Badulla', 'Batticaloa',
+    'Colombo', 'Galle', 'Gampaha', 'Hambantota',
+    'Jaffna', 'Kalutara', 'Kandy', 'Kegalle',
+    'Kilinochchi', 'Kurunegala', 'Mannar', 'Matale',
+    'Matara', 'Monaragala', 'Mullaitivu', 'Nuwara Eliya',
+    'Polonnaruwa', 'Puttalam', 'Ratnapura', 'Trincomalee',
     'Vavuniya',
   ];
 
@@ -107,6 +91,21 @@ class _HomeScreenState extends State<HomeScreen>
       begin: const Offset(0, -0.08),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
+
+    // Load saved district from backend
+    _loadDistrict();
+  }
+
+  // ── Load district from backend ───────────────────────────
+  Future<void> _loadDistrict() async {
+    final result = await AuthService.getMyDistrict();
+    if (result['success'] && result['district'] != null) {
+      final district = result['district'] as String;
+      // Only set if it's a valid district in our list
+      if (_sriLankaDistricts.contains(district)) {
+        setState(() => _selectedDistrict = district);
+      }
+    }
   }
 
   @override
@@ -138,102 +137,134 @@ class _HomeScreenState extends State<HomeScreen>
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => Container(
-        height: MediaQuery.of(context).size.height * 0.55,
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.55,
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.location_on,
-                    color: Color(0xFF0B1B66),
-                    size: 20,
+            child: Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Select District',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : const Color(0xFF0B1B66),
-                    ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.location_on, color: Color(0xFF0B1B66), size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Select District',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : const Color(0xFF0B1B66),
+                        ),
+                      ),
+                      const Spacer(),
+                      // ── Loading indicator while saving ───
+                      if (_isSavingDistrict)
+                        const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF0B1B66),
+                            strokeWidth: 2,
+                          ),
+                        ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            const Divider(height: 0, thickness: 0.5),
-            Expanded(
-              child: ListView.builder(
-                itemCount: _sriLankaDistricts.length,
-                itemBuilder: (ctx, i) {
-                  final d = _sriLankaDistricts[i];
-                  final isSelected = d == _selectedDistrict;
-                  return InkWell(
-                    onTap: () {
-                      setState(() => _selectedDistrict = d);
-                      Navigator.pop(ctx);
+                ),
+                const Divider(height: 0, thickness: 0.5),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _sriLankaDistricts.length,
+                    itemBuilder: (ctx, i) {
+                      final d = _sriLankaDistricts[i];
+                      final isSelected = d == _selectedDistrict;
+                      return InkWell(
+                        onTap: _isSavingDistrict
+                            ? null  // disable while saving
+                            : () async {
+                                // Optimistically update UI
+                                setState(() => _selectedDistrict = d);
+                                setSheetState(() => _isSavingDistrict = true);
+
+                                // Save to backend
+                                final result = await AuthService.saveDistrict(d);
+
+                                setSheetState(() => _isSavingDistrict = false);
+                                setState(() => _isSavingDistrict = false);
+
+                                Navigator.pop(ctx);
+
+                                if (result['success']) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('District set to $d'),
+                                      backgroundColor: const Color(0xFF0B1B66),
+                                    ),
+                                  );
+                                } else {
+                                  // Revert on failure
+                                  setState(() => _selectedDistrict = _selectedDistrict);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(result['message']),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              },
+                        child: Container(
+                          color: isSelected
+                              ? const Color(0xFF0B1B66).withOpacity(0.07)
+                              : null,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 14,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.location_city,
+                                size: 18,
+                                color: isSelected ? const Color(0xFF0B1B66) : Colors.grey,
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                d,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: isSelected
+                                      ? const Color(0xFF0B1B66)
+                                      : (isDark ? Colors.white : Colors.black87),
+                                ),
+                              ),
+                              const Spacer(),
+                              if (isSelected)
+                                const Icon(Icons.check, color: Color(0xFF0B1B66), size: 18),
+                            ],
+                          ),
+                        ),
+                      );
                     },
-                    child: Container(
-                      color: isSelected
-                          ? const Color(0xFF0B1B66).withOpacity(0.07)
-                          : null,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 14,
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.location_city,
-                            size: 18,
-                            color: isSelected
-                                ? const Color(0xFF0B1B66)
-                                : Colors.grey,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            d,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                              color: isSelected
-                                  ? const Color(0xFF0B1B66)
-                                  : (isDark ? Colors.white : Colors.black87),
-                            ),
-                          ),
-                          const Spacer(),
-                          if (isSelected)
-                            const Icon(
-                              Icons.check,
-                              color: Color(0xFF0B1B66),
-                              size: 18,
-                            ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -251,9 +282,7 @@ class _HomeScreenState extends State<HomeScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF121212)
-          : const Color(0xFFEEF4FF),
+      backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFEEF4FF),
       body: Stack(
         children: [
           SafeArea(
@@ -294,13 +323,9 @@ class _HomeScreenState extends State<HomeScreen>
                 ? const Color(0xFF1A3499)
                 : const Color(0xFF0B1B66),
             elevation: 8,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Icon(
-              _showNotifPanel
-                  ? Icons.notifications_active
-                  : Icons.notifications_none,
+              _showNotifPanel ? Icons.notifications_active : Icons.notifications_none,
               color: Colors.white,
             ),
           ),
@@ -367,10 +392,7 @@ class _HomeScreenState extends State<HomeScreen>
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.3),
-                  width: 1,
-                ),
+                border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
               ),
               child: Row(
                 children: [
@@ -385,11 +407,7 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                   ),
                   const SizedBox(width: 3),
-                  const Icon(
-                    Icons.keyboard_arrow_down,
-                    color: Colors.white,
-                    size: 16,
-                  ),
+                  const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 16),
                 ],
               ),
             ),
@@ -422,38 +440,20 @@ class _HomeScreenState extends State<HomeScreen>
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.notifications,
-                    color: Colors.white,
-                    size: 20,
-                  ),
+                  const Icon(Icons.notifications, color: Colors.white, size: 20),
                   const SizedBox(width: 8),
                   const Text(
                     'Notifications',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                   ),
                   if (unread > 0) ...[
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
                       child: Text(
                         '$unread',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
@@ -461,10 +461,7 @@ class _HomeScreenState extends State<HomeScreen>
                   if (unread > 0)
                     GestureDetector(
                       onTap: _markAllRead,
-                      child: const Text(
-                        'Mark all read',
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
-                      ),
+                      child: const Text('Mark all read', style: TextStyle(color: Colors.white70, fontSize: 12)),
                     ),
                 ],
               ),
@@ -478,36 +475,24 @@ class _HomeScreenState extends State<HomeScreen>
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       itemCount: _notifications.length,
                       separatorBuilder: (_, __) => const Divider(
-                        height: 0,
-                        thickness: 0.4,
-                        indent: 16,
-                        endIndent: 16,
-                      ),
+                        height: 0, thickness: 0.4, indent: 16, endIndent: 16),
                       itemBuilder: (_, i) => _buildNotifTile(_notifications[i]),
                     ),
             ),
             InkWell(
               onTap: _closePanel,
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(22),
-              ),
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(22)),
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF2A2A2A) : Colors.grey[50],
-                  borderRadius: const BorderRadius.vertical(
-                    bottom: Radius.circular(22),
-                  ),
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(22)),
                 ),
                 child: const Text(
                   'Close',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Color(0xFF0B1B66),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
+                  style: TextStyle(color: Color(0xFF0B1B66), fontWeight: FontWeight.w600, fontSize: 13),
                 ),
               ),
             ),
@@ -523,12 +508,9 @@ class _HomeScreenState extends State<HomeScreen>
     return InkWell(
       onTap: () => setState(() => item.isRead = true),
       child: Container(
-        // FIX 1: unread tile background adapts to dark mode
         color: item.isRead
             ? Colors.transparent
-            : isDark
-            ? Colors.white.withOpacity(0.05)
-            : const Color(0xFFF0F3FF),
+            : isDark ? Colors.white.withOpacity(0.05) : const Color(0xFFF0F3FF),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -554,23 +536,15 @@ class _HomeScreenState extends State<HomeScreen>
                           item.title,
                           style: TextStyle(
                             fontSize: 13,
-                            fontWeight: item.isRead
-                                ? FontWeight.w500
-                                : FontWeight.bold,
-                            color: isDark
-                                ? Colors.white
-                                : const Color(0xFF0A1B6F),
+                            fontWeight: item.isRead ? FontWeight.w500 : FontWeight.bold,
+                            color: isDark ? Colors.white : const Color(0xFF0A1B6F),
                           ),
                         ),
                       ),
                       if (!item.isRead)
                         Container(
-                          width: 7,
-                          height: 7,
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                          ),
+                          width: 7, height: 7,
+                          decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
                         ),
                     ],
                   ),
@@ -579,42 +553,24 @@ class _HomeScreenState extends State<HomeScreen>
                     item.body,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    // FIX 2: body text color adapts to dark mode
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: isDark ? Colors.grey[400] : Colors.grey[600],
-                      height: 1.4,
-                    ),
+                    style: TextStyle(fontSize: 11.5, color: isDark ? Colors.grey[400] : Colors.grey[600], height: 1.4),
                   ),
                   const SizedBox(height: 3),
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: meta.color.withOpacity(0.10),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
                           meta.label,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: meta.color,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: TextStyle(fontSize: 10, color: meta.color, fontWeight: FontWeight.w600),
                         ),
                       ),
                       const SizedBox(width: 6),
-                      Text(
-                        item.time,
-                        style: const TextStyle(
-                          fontSize: 10.5,
-                          color: Colors.grey,
-                        ),
-                      ),
+                      Text(item.time, style: const TextStyle(fontSize: 10.5, color: Colors.grey)),
                     ],
                   ),
                 ],
@@ -632,16 +588,9 @@ class _HomeScreenState extends State<HomeScreen>
       child: Center(
         child: Column(
           children: [
-            Icon(
-              Icons.notifications_off_outlined,
-              size: 40,
-              color: Colors.grey,
-            ),
+            Icon(Icons.notifications_off_outlined, size: 40, color: Colors.grey),
             SizedBox(height: 8),
-            Text(
-              'No notifications',
-              style: TextStyle(color: Colors.grey, fontSize: 13),
-            ),
+            Text('No notifications', style: TextStyle(color: Colors.grey, fontSize: 13)),
           ],
         ),
       ),
@@ -655,11 +604,7 @@ class _HomeScreenState extends State<HomeScreen>
       case _NotifType.alert:
         return _NotifMeta(Icons.warning_amber_outlined, Colors.orange, 'Alert');
       case _NotifType.valve:
-        return _NotifMeta(
-          Icons.settings_input_component_outlined,
-          const Color(0xFF0A1B6F),
-          'Valve',
-        );
+        return _NotifMeta(Icons.settings_input_component_outlined, const Color(0xFF0A1B6F), 'Valve');
       case _NotifType.report:
         return _NotifMeta(Icons.bar_chart_outlined, Colors.green, 'Report');
       case _NotifType.system:
