@@ -35,9 +35,9 @@ from slowapi.errors import RateLimitExceeded
 
 from database import engine
 from models import Base
-from mqtt_service import start_mqtt_listener, periodic_flush
+from mqtt_service import start_mqtt_listener, periodic_flush, set_leak_service as mqtt_set_leak_service
 from aggregation import schedule_aggregation
-from leak_service import set_publish_queue as leak_set_publish_queue
+from leak_service import LeakDetectionService, set_leak_service, EventType
 
 # ── Auth routers (Kulith) ─────────────────────────────────────
 from app.routes.auth_routes     import router as auth_router
@@ -51,7 +51,6 @@ from app.routes.district_routes import router as district_router
 from analytics_router import router as analytics_router
 from device_router    import router as device_router, set_publish_queue
 from mobile_router    import router as mobile_router, set_mobile_publish_queue
-from usage_router import router as usage_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -64,16 +63,120 @@ limiter = Limiter(key_func=get_remote_address)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create all database tables on startup from SQLAlchemy models
+    # Create all database tables on startup
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables verified ✓")
 
-    # Single publish queue shared across all valve command sources
+    # Shared publish queue — all valve command sources write here
     publish_queue: asyncio.Queue = asyncio.Queue()
     set_publish_queue(publish_queue)
-    leak_set_publish_queue(publish_queue)
     set_mobile_publish_queue(publish_queue)
+
+    # ── Leak detection callbacks ──────────────────────────────────────────────
+    # These run when the LeakDetectionService confirms a leak or clears one.
+    # They handle the DB writes and MQTT publishes so the service stays pure.
+
+    async def _on_event_created(
+        zone_id: int, event_type: EventType, message: str, details: dict
+    ) -> None:
+        """Write a leak/cleared event to the events table."""
+        from database import AsyncSessionLocal
+        from models import Device, Event
+        from sqlalchemy import select
+        try:
+            async with AsyncSessionLocal() as db:
+                # Get outlet device for this zone to populate FK columns
+                dev_result = await db.execute(
+                    select(Device).where(
+                        Device.zone_id     == zone_id,
+                        Device.sensor_type == "outlet",
+                        Device.status      == "active",
+                    ).limit(1)
+                )
+                device = dev_result.scalar_one_or_none()
+                if not device:
+                    logger.warning("on_event_created: no outlet device for zone_id=%d", zone_id)
+                    return
+                db.add(Event(
+                    device_id   = device.device_id,
+                    network_id  = device.network_id,
+                    zone_id     = zone_id,
+                    event_type  = event_type.value,
+                    description = message,
+                ))
+                await db.commit()
+                logger.info("Event saved: zone=%d type=%s", zone_id, event_type.value)
+        except Exception as exc:
+            logger.error("Failed to save event zone=%d: %s", zone_id, exc)
+
+    async def _on_valve_command(zone_id: int, action: str) -> None:
+        """
+        Close the outlet valve for a zone — backup action after leak confirmed.
+        Looks up zone+network slugs and all outlet device_ids, then publishes.
+        """
+        from database import AsyncSessionLocal
+        from models import Device, Zone, Network, ValveLog
+        from sqlalchemy import select, update
+        try:
+            async with AsyncSessionLocal() as db:
+                # Get zone + network slugs for MQTT topic
+                zone_result = await db.execute(
+                    select(Zone.zone_id, Network.network_id)
+                    .join(Network, Zone.network_id == Network.id)
+                    .where(Zone.id == zone_id)
+                )
+                zone_net = zone_result.one_or_none()
+                if not zone_net:
+                    logger.warning("_on_valve_command: zone_id=%d not found", zone_id)
+                    return
+                zone_slug, network_slug = zone_net.zone_id, zone_net.network_id
+
+                # All active outlet devices in this zone
+                dev_result = await db.execute(
+                    select(Device).where(
+                        Device.zone_id     == zone_id,
+                        Device.sensor_type == "outlet",
+                        Device.status      == "active",
+                    )
+                )
+                devices = dev_result.scalars().all()
+                for device in devices:
+                    await db.execute(
+                        update(Device)
+                        .where(Device.device_id == device.device_id)
+                        .values(valve_state=action)
+                    )
+                    db.add(ValveLog(
+                        device_id    = device.device_id,
+                        commanded_by = None,
+                        action       = action,
+                        source       = "auto_leak",
+                    ))
+                    await publish_queue.put((network_slug, zone_slug, device.device_id, action))
+                    logger.warning(
+                        "BACKUP VALVE CMD zone=%d device=%s action=%s",
+                        zone_id, device.device_id, action,
+                    )
+                await db.commit()
+        except Exception as exc:
+            logger.error("Failed to send valve command zone=%d: %s", zone_id, exc)
+
+    async def _on_leak_detected(zone_id: int, inlet_flow: float, outlet_flow: float) -> None:
+        """Hook for push notifications / future alerting integrations."""
+        logger.warning(
+            "LEAK ALERT zone=%d inlet=%.2f outlet=%.2f",
+            zone_id, inlet_flow, outlet_flow,
+        )
+
+    # ── Instantiate and register the leak detection service ──────────────────
+    leak_svc = LeakDetectionService(
+        on_leak_detected = _on_leak_detected,
+        on_valve_command = _on_valve_command,
+        on_event_created = _on_event_created,
+    )
+    set_leak_service(leak_svc)           # makes it available via get_leak_service()
+    mqtt_set_leak_service(leak_svc)      # wires it into mqtt_service message handlers
 
     tasks = [
         asyncio.create_task(start_mqtt_listener(publish_queue), name="mqtt"),
@@ -162,8 +265,6 @@ app.include_router(device_router)
 app.include_router(analytics_router)
 app.include_router(mobile_router)
 
-# usage page (rashans)
-app.include_router(usage_router)
 
 @app.get("/health", tags=["system"])
 async def health():

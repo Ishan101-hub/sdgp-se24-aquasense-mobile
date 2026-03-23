@@ -24,6 +24,39 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, relationship
 from sqlalchemy.sql import func
+import enum
+
+
+# ─────────────────────────────────────────────────────────────
+#  ENUMS
+#  Used by LeakDetectionService and throughout the IoT layer.
+#  String-valued so they serialise naturally to/from DB and JSON.
+# ─────────────────────────────────────────────────────────────
+
+class ValveState(str, enum.Enum):
+    OPEN    = "open"
+    CLOSED  = "closed"
+    UNKNOWN = "unknown"
+
+
+class EventType(str, enum.Enum):
+    LEAK_DETECTED  = "leak_detected"
+    LEAK_CLEARED   = "leak_cleared"
+    FLOW_MISMATCH  = "flow_mismatch"
+    VALVE_OPENED   = "valve_opened"
+    VALVE_CLOSED   = "valve_closed"
+    VALVE_FAILURE  = "valve_failure"  # valve closed but inlet flow still present
+
+
+class DeviceType(str, enum.Enum):
+    INLET  = "inlet"
+    OUTLET = "outlet"
+
+
+class EventSource(str, enum.Enum):
+    ESP32         = "esp32"
+    SERVER_BACKUP = "server_backup"
+    MANUAL        = "manual"
 
 
 class Base(DeclarativeBase):
@@ -279,7 +312,6 @@ class Event(Base):
     network_id  = Column(Integer, ForeignKey("networks.id", ondelete="SET NULL"), nullable=True)
     zone_id     = Column(Integer, ForeignKey("zones.id",    ondelete="SET NULL"), nullable=True)
     event_type  = Column(String(40), nullable=False)
-    severity    = Column(String(10), default="medium", nullable=False)
     description = Column(Text)
     resolved    = Column(Boolean, default=False, nullable=False)
     resolved_at = Column(DateTime(timezone=True), nullable=True)
@@ -317,26 +349,3 @@ class ValveLog(Base):
     __table_args__ = (
         Index("ix_valve_logs_device_ts", "device_id", "commanded_at"),
     )
-
-
-class RefreshToken(Base):
-    __tablename__ = "refresh_tokens"
-
-    id = Column(Integer, primary_key=True, index=True)
-
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-
-    token_hash = Column(Text, nullable=False)
-
-    issued_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False
-    )
-
-    expires_at = Column(
-        DateTime(timezone=True),
-        nullable=False
-    )
-
-    revoked = Column(Boolean, default=False)

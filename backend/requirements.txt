@@ -1,29 +1,12 @@
-# AquaSense — Python dependencies (merged from both backends)
-
-# Web framework
 fastapi
-uvicorn[standard]
-
-# Database (async PostgreSQL / Supabase)
+uvicorn
 sqlalchemy
 asyncpg
-
-# Authentication
-passlib[bcrypt]
 python-jose[cryptography]
-
-# Encryption (Kulith — phone/address at rest)
-cryptography
-
-# MQTT
-aiomqtt
-
-# Configuration
+passlib[bcrypt]
 pydantic-settings
-python-dotenv
-
-# Rate limiting (Kulith)
 slowapi
-
-# HTTP client (Google OAuth)
+paho-mqtt
+python-multipart
+email-validator
 httpx
