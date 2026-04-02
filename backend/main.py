@@ -22,6 +22,11 @@
 #   MQTT listener, batch flush, nightly aggregation
 
 import asyncio
+import sys
+
+if sys.platform == "win32":
+    import asyncio
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -213,10 +218,23 @@ _production_origins = [
     if o.strip()
 ]
 _dev_origins = [
+    "http://localhost",
     "http://localhost:3000",
-    "http://localhost:8080",
-    "http://localhost:8081",
-    "http://127.0.0.1:3000",
+    "http://127.0.0.1:8000",
+    "http://192.168.1.6:8000",
+    "http://192.168.1.6",
+    # "http://192.168.8.183",
+    # "http://192.168.8.183:3000",
+    # "http://192.168.8.183:5000",
+    # "http://192.168.8.183:8000",
+    # "http://192.168.8.183:8080",
+    # "http://192.168.8.183:8081",
+    # "http://192.168.8.183:52000",
+    # "http://192.168.8.183:52001",
+    # "http://127.0.0.1",
+    # "http://127.0.0.1:3000",
+    # "http://127.0.0.1:5000",
+    # "http://127.0.0.1:8000",
 ]
 _allowed_origins = (
     _production_origins + _dev_origins if _env == "development" else _production_origins

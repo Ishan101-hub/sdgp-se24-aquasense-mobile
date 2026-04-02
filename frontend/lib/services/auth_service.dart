@@ -2,10 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'auth_storage.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://localhost:8000/auth';
-  static const _storage = FlutterSecureStorage();
+  // ── Base URLs ──────────────────────────────────────────
+  static const String _host    = 'http://192.168.1.6:8000';
+  static const String baseUrl  = '$_host/auth';
+  static const _storage        = FlutterSecureStorage();
 
   // ── Save / retrieve tokens ─────────────────────────────
   static Future<void> saveTokens(String access, String refresh) async {
@@ -112,6 +115,7 @@ class AuthService {
 
       if (response.statusCode == 200) {
         await saveTokens(data['access_token'], data['refresh_token']);
+        await AuthStorage.saveToken(data['access_token']);
         return {
           'success': true,
           'two_factor_required': data['two_factor_required'] ?? false,
@@ -160,7 +164,7 @@ class AuthService {
           'email': email,
           'otp': otp,
           'new_password': newPassword,
-          'confirm_password': newPassword, // required by ResetPasswordSchema
+          'confirm_password': newPassword,
         }),
       );
 
@@ -196,12 +200,61 @@ class AuthService {
     }
   }
 
+  // ── Get My District ────────────────────────────────────
+  static Future<Map<String, dynamic>> getMyDistrict() async {
+    try {
+      final token = await getAccessToken();
+      final response = await http.get(
+        Uri.parse('$_host/district/my-district'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'district': data['district']};
+      }
+
+      return {'success': false, 'message': data['detail'] ?? 'Failed to load district'};
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
+    }
+  }
+
+  // ── Save District ───────────────────────────────────────
+  static Future<Map<String, dynamic>> saveDistrict(String district) async {
+    try {
+      final token = await getAccessToken();
+      final response = await http.post(
+        Uri.parse('$_host/district/save'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'district': district}),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'message': data['message'], 'district': data['district']};
+      }
+
+      return {'success': false, 'message': data['detail'] ?? 'Failed to save district'};
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
+    }
+  }
+
   // ── Get Profile ────────────────────────────────────────
   static Future<Map<String, dynamic>> getProfile() async {
     try {
       final token = await getAccessToken();
       final response = await http.get(
-        Uri.parse('http://localhost:8000/user/profile'),
+        Uri.parse('$_host/user/profile'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -237,7 +290,7 @@ class AuthService {
       if (profilePicture != null) body['profile_picture'] = profilePicture;
 
       final response = await http.put(
-        Uri.parse('http://localhost:8000/user/update-profile'),
+        Uri.parse('$_host/user/update-profile'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -262,7 +315,7 @@ class AuthService {
     try {
       final token = await getAccessToken();
       final response = await http.delete(
-        Uri.parse('http://localhost:8000/user/delete-account'),
+        Uri.parse('$_host/user/delete-account'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -287,7 +340,7 @@ class AuthService {
     try {
       final token = await getAccessToken();
       final response = await http.post(
-        Uri.parse('http://localhost:8000/auth/2fa/verify-login'),
+        Uri.parse('$baseUrl/2fa/verify-login'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -312,7 +365,7 @@ class AuthService {
     try {
       final token = await getAccessToken();
       final response = await http.get(
-        Uri.parse('http://localhost:8000/security/settings'),
+        Uri.parse('$_host/security/settings'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -341,7 +394,7 @@ class AuthService {
     try {
       final token = await getAccessToken();
       final response = await http.post(
-        Uri.parse('http://localhost:8000/security/2fa/enable'),
+        Uri.parse('$_host/security/2fa/enable'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -365,7 +418,7 @@ class AuthService {
     try {
       final token = await getAccessToken();
       final response = await http.post(
-        Uri.parse('http://localhost:8000/security/2fa/verify-enable'),
+        Uri.parse('$_host/security/2fa/verify-enable'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -390,7 +443,7 @@ class AuthService {
     try {
       final token = await getAccessToken();
       final response = await http.post(
-        Uri.parse('http://localhost:8000/security/2fa/disable'),
+        Uri.parse('$_host/security/2fa/disable'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -415,7 +468,7 @@ class AuthService {
     try {
       final token = await getAccessToken();
       final response = await http.post(
-        Uri.parse('http://localhost:8000/security/auto-lock'),
+        Uri.parse('$_host/security/auto-lock'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -440,7 +493,7 @@ class AuthService {
     try {
       final token = await getAccessToken();
       final response = await http.post(
-        Uri.parse('http://localhost:8000/security/login-alerts'),
+        Uri.parse('$_host/security/login-alerts'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -470,7 +523,7 @@ class AuthService {
       }
 
       final response = await http.post(
-        Uri.parse('http://localhost:8000/terms/save'),
+        Uri.parse('$_host/terms/save'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -501,7 +554,7 @@ class AuthService {
   static Future<http.Response> authGet(String endpoint) async {
     final token = await getAccessToken();
     return await http.get(
-      Uri.parse('http://localhost:8000$endpoint'),
+      Uri.parse('$_host$endpoint'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -514,7 +567,7 @@ class AuthService {
       String endpoint, Map<String, dynamic> body) async {
     final token = await getAccessToken();
     return await http.post(
-      Uri.parse('http://localhost:8000$endpoint'),
+      Uri.parse('$_host$endpoint'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',

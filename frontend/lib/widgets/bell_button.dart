@@ -7,7 +7,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 
-import '../models/app_notification.dart';
+import '../models/mobile_models.dart';
 import '../services/api_service.dart';
 
 // ── Bell Button ───────────────────────────────────────────────
@@ -25,7 +25,7 @@ class BellButton extends StatefulWidget {
 }
 
 class _BellButtonState extends State<BellButton> {
-  List<AppNotification> _notifications = [];
+  List<MobileNotification> _notifications = [];
   final Set<int>        _readIndices   = {};
   Timer?                _timer;
   final _api = ApiService();
@@ -144,7 +144,7 @@ class _BellButtonState extends State<BellButton> {
 // ── Notifications Page ────────────────────────────────────────
 
 class NotificationsPage extends StatefulWidget {
-  final List<AppNotification> notifications;
+  final List<MobileNotification> notifications;
   final Set<int>              readIndices;
   final void Function(int)    onSwitchTab;
   final void Function(int)    onNotificationRead;
@@ -267,7 +267,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
 // ── Notification Card ─────────────────────────────────────────
 
 class _NotificationCard extends StatelessWidget {
-  final AppNotification notification;
+  final MobileNotification notification;
   final bool            isRead;
   final bool            isDark;
   final VoidCallback    onTap;
