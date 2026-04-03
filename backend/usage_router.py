@@ -1,6 +1,6 @@
 # usage_router.py
 # AquaSense — Usage summary endpoint
-#
+#   GET /usage/summary  → summary of water usage for a given month (defaults to current month)
 # Reads from daily_summaries (pre-aggregated by aggregation.py).
 # Scoped to the user's network via owner_id — consistent with all other routers.
 #
