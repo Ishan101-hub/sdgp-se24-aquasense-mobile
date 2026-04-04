@@ -20,7 +20,11 @@ const int   mqtt_port     = 8883;
 // ==================== MQTT Topics ====================
 #define NETWORK_ID  "home_01"
 #define ZONE_ID     "bathroom_01"
-#define DEVICE_ID   "pipe_01"
+#define DEVICE_ID   "pipe_01_inlet"
+
+// Separate base for the outlet device's topics
+#define OUTLET_DEVICE_ID "pipe_01_outlet"
+#define OUTLET_BASE      "aquasense/" NETWORK_ID "/" ZONE_ID "/" OUTLET_DEVICE_ID
 
 #define BASE        "aquasense/" NETWORK_ID "/" ZONE_ID "/" DEVICE_ID
 
@@ -28,9 +32,10 @@ const int   mqtt_port     = 8883;
 #define TOPIC_INLET_FLOW        BASE "/sensor/inlet/flow_rate"
 #define TOPIC_INLET_FLOW_LIVE   BASE "/sensor/inlet/live_flow"
 #define TOPIC_INLET_TOTAL       BASE "/sensor/inlet/total_L"
-#define TOPIC_OUTLET_FLOW       BASE "/sensor/outlet/flow_rate"
-#define TOPIC_OUTLET_TOTAL      BASE "/sensor/outlet/total_L"
-#define TOPIC_OUTLET_HEARTBEAT  BASE "/sensor/outlet/heartbeat"
+
+#define TOPIC_OUTLET_FLOW       OUTLET_BASE "/sensor/outlet/flow_rate"
+#define TOPIC_OUTLET_TOTAL      OUTLET_BASE "/sensor/outlet/total_L"
+#define TOPIC_OUTLET_HEARTBEAT  OUTLET_BASE "/sensor/outlet/heartbeat"
 
 // Valve control
 #define TOPIC_VALVE_COMMAND     BASE "/valve/command"

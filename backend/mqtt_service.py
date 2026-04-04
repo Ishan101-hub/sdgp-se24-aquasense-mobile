@@ -1,3 +1,4 @@
+
 # mqtt_service.py
 # AquaSense v3.3 — Async MQTT service
 #
@@ -582,6 +583,7 @@ async def _touch_device(device_id: str) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def _dispatch(topic: str, raw_payload: bytes) -> None:
+    logger.info("MQTT MESSAGE RECEIVED → Topic: %s Payload: %s", topic, raw_payload.decode())
     """
     Route an incoming MQTT message to the correct handler.
 
@@ -722,6 +724,7 @@ async def start_mqtt_listener(publish_queue: asyncio.Queue) -> None:
     )
 
     while True:
+        logger.info("Attempting MQTT connection...")
         try:
             async with aiomqtt.Client(
                 hostname=settings.MQTT_BROKER_HOST,
@@ -733,22 +736,24 @@ async def start_mqtt_listener(publish_queue: asyncio.Queue) -> None:
                 keepalive=60,
             ) as client:
 
-                async with client.unfiltered_messages() as messages:
-                    await client.subscribe("aquasense/+/+/+/sensor/+/+", qos=1)
-                    await client.subscribe("aquasense/+/+/+/leak/+",      qos=1)
-                    await client.subscribe("aquasense/+/+/+/valve/+",     qos=1)  # v3.3: valve status ack
+                logger.info("MQTT connection successful!")
 
+                await client.subscribe("aquasense/#", qos=1)
+                logger.info("Subscribed to aquasense/#")
+
+                asyncio.create_task(_outbound_loop(client, publish_queue))
+
+                async for message in client.messages:
                     logger.info(
-                        "✅ MQTT connected — subscribed to sensor (inlet+outlet) + leak + valve topics"
+                        "MQTT RX → %s | %s",
+                        message.topic,
+                        message.payload.decode()
                     )
 
-                    asyncio.create_task(_outbound_loop(client, publish_queue))
+                    asyncio.create_task(
+                        _dispatch(str(message.topic), message.payload)
+                    )
 
-                    async for message in messages:
-                        asyncio.create_task(
-                            _dispatch(str(message.topic), message.payload)
-                        )
-
-        except aiomqtt.MqttError as exc:
-            logger.error("MQTT disconnected: %s — retrying in 5s", exc)
+        except Exception as exc:
+            logger.error("MQTT error: %s", exc)
             await asyncio.sleep(5)

@@ -248,7 +248,7 @@ class Reading(Base):
     sensor_type  = Column(String(10), nullable=False)
     flow_rate    = Column(Numeric(10, 4), nullable=False)
     total_volume = Column(Numeric(14, 4), nullable=False)
-    valve_status = Column(String(10),    nullable=False)
+    valve_status = Column(String(10),    nullable=True)
     timestamp    = Column(DateTime(timezone=True), nullable=False)
     received_at  = Column(DateTime(timezone=True), server_default=func.now())
 

@@ -23,7 +23,7 @@ const int   mqtt_port     = 8883;
 
 #define NETWORK_ID  "home_01"
 #define ZONE_ID     "bathroom_01"
-#define DEVICE_ID   "pipe_01"
+#define DEVICE_ID   "pipe_01_outlet"
 
 #define BASE        "aquasense/" NETWORK_ID "/" ZONE_ID "/" DEVICE_ID
 
