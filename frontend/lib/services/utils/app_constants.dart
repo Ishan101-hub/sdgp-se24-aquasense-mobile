@@ -4,7 +4,7 @@ class AppConstants {
   // Using 127.0.0.1 for Chrome browser testing
   // Change back to http://10.0.2.2:8000 when testing on Android emulator
   // ─────────────────────────────────────────────
-  static const String baseUrl = "http://192.168.1.6:8000";
+  static const String baseUrl = "http://192.168.1.7:8000";
 
   // ─────────────────────────────────────────────
   // AUTH ENDPOINTS
@@ -27,7 +27,7 @@ class AppConstants {
   static const String updateProfile = "/user/update-profile";
   static const String deleteAccount = "/user/delete-account";
   static const String registerDevice = "/user/register-device";
- 
+
   // ─────────────────────────────────────────────
   // TERMS ENDPOINTS
   // ─────────────────────────────────────────────

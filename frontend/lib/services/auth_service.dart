@@ -6,9 +6,9 @@ import 'auth_storage.dart';
 
 class AuthService {
   // ── Base URLs ──────────────────────────────────────────
-  static const String _host    = 'http://192.168.1.6:8000';
-  static const String baseUrl  = '$_host/auth';
-  static const _storage        = FlutterSecureStorage();
+  static const String _host = 'http://192.168.1.7:8000';
+  static const String baseUrl = '$_host/auth';
+  static const _storage = FlutterSecureStorage();
 
   // ── Save / retrieve tokens ─────────────────────────────
   static Future<void> saveTokens(String access, String refresh) async {
@@ -17,7 +17,8 @@ class AuthService {
   }
 
   static Future<String?> getAccessToken() => _storage.read(key: 'access_token');
-  static Future<String?> getRefreshToken() => _storage.read(key: 'refresh_token');
+  static Future<String?> getRefreshToken() =>
+      _storage.read(key: 'refresh_token');
 
   static Future<void> clearTokens() async {
     await _storage.delete(key: 'access_token');
@@ -49,9 +50,15 @@ class AuthService {
         return {'success': true, 'message': data['message']};
       }
 
-      return {'success': false, 'message': data['detail'] ?? 'Registration failed'};
+      return {
+        'success': false,
+        'message': data['detail'] ?? 'Registration failed',
+      };
     } catch (e) {
-      return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
+      return {
+        'success': false,
+        'message': 'Network error. Please check your connection.\n\nDetail: $e',
+      };
     }
   }
 
@@ -73,9 +80,15 @@ class AuthService {
         return {'success': true, 'message': data['message']};
       }
 
-      return {'success': false, 'message': data['detail'] ?? 'OTP verification failed'};
+      return {
+        'success': false,
+        'message': data['detail'] ?? 'OTP verification failed',
+      };
     } catch (e) {
-      return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
+      return {
+        'success': false,
+        'message': 'Network error. Please check your connection.\n\nDetail: $e',
+      };
     }
   }
 
@@ -93,9 +106,15 @@ class AuthService {
         return {'success': true, 'message': data['message']};
       }
 
-      return {'success': false, 'message': data['detail'] ?? 'Failed to resend OTP'};
+      return {
+        'success': false,
+        'message': data['detail'] ?? 'Failed to resend OTP',
+      };
     } catch (e) {
-      return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
+      return {
+        'success': false,
+        'message': 'Network error. Please check your connection.\n\nDetail: $e',
+      };
     }
   }
 
@@ -125,7 +144,10 @@ class AuthService {
 
       return {'success': false, 'message': data['detail'] ?? 'Login failed'};
     } catch (e) {
-      return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
+      return {
+        'success': false,
+        'message': 'Network error. Please check your connection.\n\nDetail: $e',
+      };
     }
   }
 
@@ -144,9 +166,15 @@ class AuthService {
         return {'success': true, 'message': data['message']};
       }
 
-      return {'success': false, 'message': data['detail'] ?? 'Failed to send OTP'};
+      return {
+        'success': false,
+        'message': data['detail'] ?? 'Failed to send OTP',
+      };
     } catch (e) {
-      return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
+      return {
+        'success': false,
+        'message': 'Network error. Please check your connection.\n\nDetail: $e',
+      };
     }
   }
 
@@ -174,9 +202,15 @@ class AuthService {
         return {'success': true, 'message': data['message']};
       }
 
-      return {'success': false, 'message': data['detail'] ?? 'Password reset failed'};
+      return {
+        'success': false,
+        'message': data['detail'] ?? 'Password reset failed',
+      };
     } catch (e) {
-      return {'success': false, 'message': 'Network error. Please check your connection.\n\nDetail: $e'};
+      return {
+        'success': false,
+        'message': 'Network error. Please check your connection.\n\nDetail: $e',
+      };
     }
   }
 
@@ -204,13 +238,15 @@ class AuthService {
   static Future<Map<String, dynamic>> getMyDistrict() async {
     try {
       final token = await getAccessToken();
-      final response = await http.get(
-        Uri.parse('$_host/district/my-district'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$_host/district/my-district'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -218,7 +254,10 @@ class AuthService {
         return {'success': true, 'district': data['district']};
       }
 
-      return {'success': false, 'message': data['detail'] ?? 'Failed to load district'};
+      return {
+        'success': false,
+        'message': data['detail'] ?? 'Failed to load district',
+      };
     } catch (e) {
       return {'success': false, 'message': 'Error: $e'};
     }
@@ -228,22 +267,31 @@ class AuthService {
   static Future<Map<String, dynamic>> saveDistrict(String district) async {
     try {
       final token = await getAccessToken();
-      final response = await http.post(
-        Uri.parse('$_host/district/save'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({'district': district}),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$_host/district/save'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({'district': district}),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
-        return {'success': true, 'message': data['message'], 'district': data['district']};
+        return {
+          'success': true,
+          'message': data['message'],
+          'district': data['district'],
+        };
       }
 
-      return {'success': false, 'message': data['detail'] ?? 'Failed to save district'};
+      return {
+        'success': false,
+        'message': data['detail'] ?? 'Failed to save district',
+      };
     } catch (e) {
       return {'success': false, 'message': 'Error: $e'};
     }
@@ -253,13 +301,15 @@ class AuthService {
   static Future<Map<String, dynamic>> getProfile() async {
     try {
       final token = await getAccessToken();
-      final response = await http.get(
-        Uri.parse('$_host/user/profile'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$_host/user/profile'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -267,7 +317,10 @@ class AuthService {
         return {'success': true, ...data};
       }
 
-      return {'success': false, 'message': data['detail'] ?? 'Failed to load profile'};
+      return {
+        'success': false,
+        'message': data['detail'] ?? 'Failed to load profile',
+      };
     } catch (e) {
       return {'success': false, 'message': 'Error: $e'};
     }
@@ -284,19 +337,21 @@ class AuthService {
       final token = await getAccessToken();
 
       final body = <String, dynamic>{};
-      if (name != null)           body['name']            = name;
-      if (phone != null)          body['phone']           = phone;
-      if (address != null)        body['address']         = address;
+      if (name != null) body['name'] = name;
+      if (phone != null) body['phone'] = phone;
+      if (address != null) body['address'] = address;
       if (profilePicture != null) body['profile_picture'] = profilePicture;
 
-      final response = await http.put(
-        Uri.parse('$_host/user/update-profile'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode(body),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .put(
+            Uri.parse('$_host/user/update-profile'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -304,7 +359,10 @@ class AuthService {
         return {'success': true, 'message': data['message']};
       }
 
-      return {'success': false, 'message': data['detail'] ?? 'Failed to update profile'};
+      return {
+        'success': false,
+        'message': data['detail'] ?? 'Failed to update profile',
+      };
     } catch (e) {
       return {'success': false, 'message': 'Error: $e'};
     }
@@ -314,13 +372,15 @@ class AuthService {
   static Future<Map<String, dynamic>> deleteAccount() async {
     try {
       final token = await getAccessToken();
-      final response = await http.delete(
-        Uri.parse('$_host/user/delete-account'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .delete(
+            Uri.parse('$_host/user/delete-account'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -329,7 +389,10 @@ class AuthService {
         return {'success': true, 'message': data['message']};
       }
 
-      return {'success': false, 'message': data['detail'] ?? 'Failed to delete account'};
+      return {
+        'success': false,
+        'message': data['detail'] ?? 'Failed to delete account',
+      };
     } catch (e) {
       return {'success': false, 'message': 'Error: $e'};
     }
@@ -339,14 +402,16 @@ class AuthService {
   static Future<Map<String, dynamic>> verify2FALogin(String otp) async {
     try {
       final token = await getAccessToken();
-      final response = await http.post(
-        Uri.parse('$baseUrl/2fa/verify-login'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({'otp': otp}),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/2fa/verify-login'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({'otp': otp}),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -354,7 +419,10 @@ class AuthService {
         return {'success': true, 'message': data['message']};
       }
 
-      return {'success': false, 'message': data['detail'] ?? '2FA verification failed'};
+      return {
+        'success': false,
+        'message': data['detail'] ?? '2FA verification failed',
+      };
     } catch (e) {
       return {'success': false, 'message': 'Error: $e'};
     }
@@ -364,26 +432,31 @@ class AuthService {
   static Future<Map<String, dynamic>> getSecuritySettings() async {
     try {
       final token = await getAccessToken();
-      final response = await http.get(
-        Uri.parse('$_host/security/settings'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$_host/security/settings'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
         return {
           'success': true,
-          'two_factor_enabled':   data['two_factor_enabled'],
+          'two_factor_enabled': data['two_factor_enabled'],
           'login_alerts_enabled': data['login_alerts_enabled'],
-          'auto_lock_minutes':    data['auto_lock_minutes'],
+          'auto_lock_minutes': data['auto_lock_minutes'],
         };
       }
 
-      return {'success': false, 'message': data['detail'] ?? 'Failed to load settings'};
+      return {
+        'success': false,
+        'message': data['detail'] ?? 'Failed to load settings',
+      };
     } catch (e) {
       return {'success': false, 'message': 'Error: $e'};
     }
@@ -393,13 +466,15 @@ class AuthService {
   static Future<Map<String, dynamic>> enable2FA() async {
     try {
       final token = await getAccessToken();
-      final response = await http.post(
-        Uri.parse('$_host/security/2fa/enable'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$_host/security/2fa/enable'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -407,7 +482,10 @@ class AuthService {
         return {'success': true, 'message': data['message']};
       }
 
-      return {'success': false, 'message': data['detail'] ?? 'Failed to enable 2FA'};
+      return {
+        'success': false,
+        'message': data['detail'] ?? 'Failed to enable 2FA',
+      };
     } catch (e) {
       return {'success': false, 'message': 'Error: $e'};
     }
@@ -417,14 +495,16 @@ class AuthService {
   static Future<Map<String, dynamic>> verifyEnable2FA(String otp) async {
     try {
       final token = await getAccessToken();
-      final response = await http.post(
-        Uri.parse('$_host/security/2fa/verify-enable'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({'otp': otp}),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$_host/security/2fa/verify-enable'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({'otp': otp}),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -432,7 +512,10 @@ class AuthService {
         return {'success': true, 'message': data['message']};
       }
 
-      return {'success': false, 'message': data['detail'] ?? 'OTP verification failed'};
+      return {
+        'success': false,
+        'message': data['detail'] ?? 'OTP verification failed',
+      };
     } catch (e) {
       return {'success': false, 'message': 'Error: $e'};
     }
@@ -442,14 +525,16 @@ class AuthService {
   static Future<Map<String, dynamic>> disable2FA(String password) async {
     try {
       final token = await getAccessToken();
-      final response = await http.post(
-        Uri.parse('$_host/security/2fa/disable'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({'password': password}),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$_host/security/2fa/disable'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({'password': password}),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -457,7 +542,10 @@ class AuthService {
         return {'success': true, 'message': data['message']};
       }
 
-      return {'success': false, 'message': data['detail'] ?? 'Failed to disable 2FA'};
+      return {
+        'success': false,
+        'message': data['detail'] ?? 'Failed to disable 2FA',
+      };
     } catch (e) {
       return {'success': false, 'message': 'Error: $e'};
     }
@@ -467,14 +555,16 @@ class AuthService {
   static Future<Map<String, dynamic>> setAutoLock(int minutes) async {
     try {
       final token = await getAccessToken();
-      final response = await http.post(
-        Uri.parse('$_host/security/auto-lock'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({'minutes': minutes}),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$_host/security/auto-lock'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({'minutes': minutes}),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -482,7 +572,10 @@ class AuthService {
         return {'success': true, 'message': data['message']};
       }
 
-      return {'success': false, 'message': data['detail'] ?? 'Failed to update auto lock'};
+      return {
+        'success': false,
+        'message': data['detail'] ?? 'Failed to update auto lock',
+      };
     } catch (e) {
       return {'success': false, 'message': 'Error: $e'};
     }
@@ -492,14 +585,16 @@ class AuthService {
   static Future<Map<String, dynamic>> toggleLoginAlerts(bool enabled) async {
     try {
       final token = await getAccessToken();
-      final response = await http.post(
-        Uri.parse('$_host/security/login-alerts'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({'enabled': enabled}),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$_host/security/login-alerts'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({'enabled': enabled}),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -507,7 +602,10 @@ class AuthService {
         return {'success': true, 'message': data['message']};
       }
 
-      return {'success': false, 'message': data['detail'] ?? 'Failed to update login alerts'};
+      return {
+        'success': false,
+        'message': data['detail'] ?? 'Failed to update login alerts',
+      };
     } catch (e) {
       return {'success': false, 'message': 'Error: $e'};
     }
@@ -519,20 +617,26 @@ class AuthService {
       final token = await getAccessToken();
 
       if (token == null || token.isEmpty) {
-        return {'success': false, 'message': 'You are not logged in. Please log in and try again.'};
+        return {
+          'success': false,
+          'message': 'You are not logged in. Please log in and try again.',
+        };
       }
 
-      final response = await http.post(
-        Uri.parse('$_host/terms/save'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({'terms_of_service': true}),
-      ).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () => throw Exception('Request timed out. Please try again.'),
-      );
+      final response = await http
+          .post(
+            Uri.parse('$_host/terms/save'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({'terms_of_service': true}),
+          )
+          .timeout(
+            const Duration(seconds: 10),
+            onTimeout: () =>
+                throw Exception('Request timed out. Please try again.'),
+          );
 
       final data = jsonDecode(response.body);
 
@@ -541,10 +645,17 @@ class AuthService {
       }
 
       if (response.statusCode == 401) {
-        return {'success': false, 'message': 'Session expired. Please log in again.'};
+        return {
+          'success': false,
+          'message': 'Session expired. Please log in again.',
+        };
       }
 
-      return {'success': false, 'message': data['detail'] ?? 'Failed to save terms. (${response.statusCode})'};
+      return {
+        'success': false,
+        'message':
+            data['detail'] ?? 'Failed to save terms. (${response.statusCode})',
+      };
     } catch (e) {
       return {'success': false, 'message': 'Error: $e'};
     }
@@ -564,7 +675,9 @@ class AuthService {
 
   // ── Authenticated POST ─────────────────────────────────
   static Future<http.Response> authPost(
-      String endpoint, Map<String, dynamic> body) async {
+    String endpoint,
+    Map<String, dynamic> body,
+  ) async {
     final token = await getAccessToken();
     return await http.post(
       Uri.parse('$_host$endpoint'),

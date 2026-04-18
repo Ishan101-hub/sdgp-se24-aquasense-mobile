@@ -17,7 +17,7 @@ class ApiService {
   // Same WiFi (real device): 'http://192.168.x.x:8000'
   // Android emulator:        'http://10.0.2.2:8000'
   // Deployed:                'https://your-app.onrender.com'
-static const String baseUrl = 'http://192.168.1.6:8000';
+  static const String baseUrl = 'http://192.168.1.7:8000';
 
   // ── Shared header builder ─────────────────────────────────────────────────
   Future<Map<String, String>> _authHeaders({String? accept}) async {
@@ -39,7 +39,6 @@ static const String baseUrl = 'http://192.168.1.6:8000';
       return fallback;
     }
   }
-
 
   // ══════════════════════════════════════════════════════════════════════════
   //  /mobile/zones/daily   →  DailyConsumptionCard + TodayCard zones
@@ -64,9 +63,9 @@ static const String baseUrl = 'http://192.168.1.6:8000';
       return []; // no network registered yet
     }
     throw Exception(
-        _errorDetail(response, 'Failed to load zones (${response.statusCode})'));
+      _errorDetail(response, 'Failed to load zones (${response.statusCode})'),
+    );
   }
-
 
   // ══════════════════════════════════════════════════════════════════════════
   //  /mobile/flowrate   →  WaterStatusCard
@@ -84,14 +83,18 @@ static const String baseUrl = 'http://192.168.1.6:8000';
 
     if (response.statusCode == 200) {
       return FlowRateData.fromJson(
-          jsonDecode(response.body) as Map<String, dynamic>);
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
     } else if (response.statusCode == 404) {
       return FlowRateData.empty();
     }
     throw Exception(
-        _errorDetail(response, 'Failed to load flow rate (${response.statusCode})'));
+      _errorDetail(
+        response,
+        'Failed to load flow rate (${response.statusCode})',
+      ),
+    );
   }
-
 
   // ══════════════════════════════════════════════════════════════════════════
   //  /mobile/dashboard/today   →  TodayCard totals
@@ -109,14 +112,18 @@ static const String baseUrl = 'http://192.168.1.6:8000';
 
     if (response.statusCode == 200) {
       return DashboardToday.fromJson(
-          jsonDecode(response.body) as Map<String, dynamic>);
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
     } else if (response.statusCode == 404) {
       return DashboardToday.empty();
     }
     throw Exception(
-        _errorDetail(response, 'Failed to load dashboard (${response.statusCode})'));
+      _errorDetail(
+        response,
+        'Failed to load dashboard (${response.statusCode})',
+      ),
+    );
   }
-
 
   // ══════════════════════════════════════════════════════════════════════════
   //  /mobile/leakages   →  Leakages screen
@@ -141,9 +148,12 @@ static const String baseUrl = 'http://192.168.1.6:8000';
       return [];
     }
     throw Exception(
-        _errorDetail(response, 'Failed to load leakages (${response.statusCode})'));
+      _errorDetail(
+        response,
+        'Failed to load leakages (${response.statusCode})',
+      ),
+    );
   }
-
 
   // ══════════════════════════════════════════════════════════════════════════
   //  POST /mobile/valve   →  Leakages screen valve toggle
@@ -166,12 +176,16 @@ static const String baseUrl = 'http://192.168.1.6:8000';
     } else if (response.statusCode == 409) {
       // Active leak — backend wants the user to resolve the alert first.
       throw Exception(
-          _errorDetail(response, 'Active leak detected. Resolve the alert first.'));
+        _errorDetail(
+          response,
+          'Active leak detected. Resolve the alert first.',
+        ),
+      );
     }
     throw Exception(
-        _errorDetail(response, 'Valve command failed (${response.statusCode})'));
+      _errorDetail(response, 'Valve command failed (${response.statusCode})'),
+    );
   }
-
 
   // ══════════════════════════════════════════════════════════════════════════
   //  /mobile/report/monthly   →  Report screen
@@ -183,26 +197,28 @@ static const String baseUrl = 'http://192.168.1.6:8000';
     int? networkId,
   }) async {
     final params = <String, String>{
-      'year':  year.toString(),
+      'year': year.toString(),
       'month': month.toString(),
       if (networkId != null) 'network_id': networkId.toString(),
     };
-    final uri = Uri.parse('$baseUrl/mobile/report/monthly')
-        .replace(queryParameters: params);
+    final uri = Uri.parse(
+      '$baseUrl/mobile/report/monthly',
+    ).replace(queryParameters: params);
     final response = await http
         .get(uri, headers: await _authHeaders())
         .timeout(const Duration(seconds: 10));
 
     if (response.statusCode == 200) {
       return MonthlyReport.fromJson(
-          jsonDecode(response.body) as Map<String, dynamic>);
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
     } else if (response.statusCode == 404) {
       return MonthlyReport.empty(year, month);
     }
     throw Exception(
-        _errorDetail(response, 'Failed to load report (${response.statusCode})'));
+      _errorDetail(response, 'Failed to load report (${response.statusCode})'),
+    );
   }
-
 
   // ══════════════════════════════════════════════════════════════════════════
   //  GET /mobile/alerts   →  Notification bell count + list
@@ -210,33 +226,38 @@ static const String baseUrl = 'http://192.168.1.6:8000';
 
   Future<AlertsResponse> fetchAlerts({
     bool resolved = false,
-    int  limit    = 50,
+    int limit = 50,
     int? networkId,
   }) async {
     final params = <String, String>{
       'resolved': resolved.toString(),
-      'limit':    limit.toString(),
+      'limit': limit.toString(),
       if (networkId != null) 'network_id': networkId.toString(),
     };
-    final uri = Uri.parse('$baseUrl/mobile/alerts')
-        .replace(queryParameters: params);
+    final uri = Uri.parse(
+      '$baseUrl/mobile/alerts',
+    ).replace(queryParameters: params);
     final response = await http
         .get(uri, headers: await _authHeaders())
         .timeout(const Duration(seconds: 10));
 
     if (response.statusCode == 200) {
       return AlertsResponse.fromJson(
-          jsonDecode(response.body) as Map<String, dynamic>);
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
     }
     return AlertsResponse.empty();
   }
 
   // Convenience: only the badge count (avoids deserializing all items).
   Future<int> fetchUnresolvedAlertCount({int? networkId}) async {
-    final res = await fetchAlerts(resolved: false, limit: 1, networkId: networkId);
+    final res = await fetchAlerts(
+      resolved: false,
+      limit: 1,
+      networkId: networkId,
+    );
     return res.unreadCount;
   }
-
 
   // ══════════════════════════════════════════════════════════════════════════
   //  POST /mobile/alerts/{id}/resolve
@@ -250,10 +271,13 @@ static const String baseUrl = 'http://192.168.1.6:8000';
 
     if (response.statusCode != 200) {
       throw Exception(
-          _errorDetail(response, 'Failed to resolve alert (${response.statusCode})'));
+        _errorDetail(
+          response,
+          'Failed to resolve alert (${response.statusCode})',
+        ),
+      );
     }
   }
-
 
   // ══════════════════════════════════════════════════════════════════════════
   //  GET /mobile/notifications   →  BellButton notification list
@@ -277,7 +301,6 @@ static const String baseUrl = 'http://192.168.1.6:8000';
     }
     return [];
   }
-
 
   // ══════════════════════════════════════════════════════════════════════════
   //  KEPT FROM ORIGINAL: Usage Summary  +  Monthly Report PDF download
@@ -309,8 +332,9 @@ static const String baseUrl = 'http://192.168.1.6:8000';
     );
 
     if (response.statusCode == 200) {
-      final dir  = await getApplicationDocumentsDirectory();
-      final name = 'aquasense_report_${year}_${month.toString().padLeft(2, '0')}.pdf';
+      final dir = await getApplicationDocumentsDirectory();
+      final name =
+          'aquasense_report_${year}_${month.toString().padLeft(2, '0')}.pdf';
       final file = File('${dir.path}/$name');
       await file.writeAsBytes(response.bodyBytes);
       return file;
