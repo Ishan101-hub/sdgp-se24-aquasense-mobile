@@ -29,3 +29,6 @@ slowapi
 httpx
 
 email-validator
+
+# PDF generation
+reportlab
