@@ -96,26 +96,47 @@ int            interval         = 1000;
 float          calibrationFactor = 6.5;
 
 // -------------------- Valve & Leak Detection --------------------
-bool valveState       = true;   // true = open
-bool leakDetected     = false;  // Stays true until user manually opens valve from app
+bool valveState       = true;   // true = open (NC relay energised)
+bool leakDetected     = false;  // Stays true until user manually re-opens valve from app
 int  leakConfirmCount = 0;
-const int LEAK_CONFIRM_THRESHOLD = 3;  // Must detect for 3 consecutive seconds
+const int LEAK_CONFIRM_THRESHOLD = 3;  // Consecutive seconds above threshold before confirming leak
 
 // -------------------- Heartbeat Watchdog --------------------
+// The inlet ESP32 checks whether the outlet ESP32 is alive before running
+// leak detection. If no heartbeat is received within HEARTBEAT_TIMEOUT_MS,
+// leak detection is suppressed to prevent false positives from a missing
+// outlet reading.
 unsigned long lastHeartbeatMillis        = 0;
 const unsigned long HEARTBEAT_TIMEOUT_MS = 5000;  // 5 seconds
 
 // -------------------- Leak Threshold --------------------
-const float leakThreshold = 0.8;  // L/min difference to flag as leak
+// Must match server: config.FLOW_MISMATCH_THRESHOLD_LPM = 0.8
+const float leakThreshold = 0.8;  // L/min difference to flag as potential leak
 
-// -------------------- Settle Window (Scenario 3) --------------------
-// After the valve is re-opened by the user, suppress leak detection for
-// SETTLE_DURATION_MS milliseconds so that the flow rate can stabilise
-// before any mismatch check runs. Without this, turbulent flow in the
-// first few seconds after opening would immediately re-trigger a false leak.
-bool          isSettling         = false;
-unsigned long settleStartMillis  = 0;
-const unsigned long SETTLE_DURATION_MS = 10000;  // 10 seconds
+// ==================== SETTLE WINDOW ====================
+//
+// PURPOSE: Suppress false leak detection immediately after the valve opens.
+//
+// PROBLEM: When the valve opens, inlet flow rises within the first pump
+// stroke (~0-2 seconds). Outlet flow only rises after water travels through
+// the pipe to reach the outlet sensor (~3-8 seconds depending on pipe length
+// and pressure). During this stabilisation gap the delta (inlet - outlet)
+// easily exceeds leakThreshold, and if the mismatch lasts 3 consecutive
+// seconds the system falsely reports a leak.
+//
+// FIX: Immediately upon receiving an "open" valve command, set isSettling=true
+// and record the start time. While settling, the leak detection block is
+// completely skipped and leakConfirmCount is reset every tick. After
+// SETTLE_DURATION_MS the flag is cleared and normal detection resumes.
+//
+// This must match the server backup detector:
+//   leak_service.py → SETTLE_WINDOW_SECONDS = 10
+//   leak_service.py → force_settle() is called by mobile_valve_command on open
+//
+bool          isSettling        = false;
+unsigned long settleStartMillis = 0;
+const unsigned long SETTLE_DURATION_MS = 10000;  // 10 seconds — must match server
+
 
 // -------------------- ISR --------------------
 void IRAM_ATTR pulseCounter() {
@@ -124,13 +145,24 @@ void IRAM_ATTR pulseCounter() {
 
 // ==================== HELPERS ====================
 
-// Parse an incoming MQTT command.
-// The server sends a plain string: "open" or "close".
-// This helper also accepts JSON {"valve":"open"} for forward compatibility.
+// Parse an incoming MQTT valve command.
+// Server sends plain text "open" or "close".
+// Also accepts JSON {"valve":"open"} for forward compatibility.
 String parseValveCommand(const String& msg) {
   if (msg == "open"  || msg.indexOf("\"open\"")  >= 0) return "open";
   if (msg == "close" || msg.indexOf("\"close\"") >= 0) return "close";
   return "";
+}
+
+// Start the settle window unconditionally.
+// Called whenever the valve opens for ANY reason (command from app, or on boot).
+// Resets the leak confirmation counter so any counts accumulated before the
+// valve opened (from a prior flow event) do not carry over.
+void startSettleWindow() {
+  isSettling        = true;
+  settleStartMillis = millis();
+  leakConfirmCount  = 0;
+  Serial.println("⏳ Settle window started — leak detection paused for 10 s");
 }
 
 // ==================== MQTT CALLBACK ====================
@@ -145,48 +177,63 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   Serial.print("]: ");
   Serial.println(message);
 
-  // ── Valve commands from mobile app / server ─────────────────────────────
+  // ── Valve commands from mobile app / server backup detector ────────────
   if (String(topic) == TOPIC_VALVE_COMMAND) {
     String cmd = parseValveCommand(message);
 
     if (cmd == "open") {
-      // ── Scenario 3: user re-opens valve after fixing the leak ──
-      // Clear leak state, reset counter, open valve, then start the
-      // 10-second settle window so flow can stabilise before leak
-      // detection resumes. Without this a transient flow difference
-      // immediately re-triggers a false alarm.
+      // ── User opens valve (normal operation or after fixing a leak) ───────
+      // Step 1: clear leak state so the confirmation counter starts fresh
       leakDetected     = false;
       leakConfirmCount = 0;
+
+      // Step 2: physically open the relay
       openValve();
 
-      // Start settle window
-      isSettling        = true;
-      settleStartMillis = millis();
-      Serial.println("⏳ Settle window started — leak detection paused for 10s");
+      // Step 3: start the settle window BEFORE publishing any status.
+      // The settle window suppresses leak detection for SETTLE_DURATION_MS
+      // so the transient inlet/outlet flow mismatch during pipe pressurisation
+      // does not trigger a false alarm.
+      // The server backup detector mirrors this via force_settle() in
+      // mobile_valve_command (leak_service.py → force_settle).
+      startSettleWindow();
 
+      // Step 4: publish updated state so server and app stay in sync.
+      // retained=true ensures late-connecting subscribers see current state.
       client.publish(TOPIC_VALVE_STATUS, "Opened", true);
       client.publish(TOPIC_LEAK_ALERT,   "{\"status\":\"NORMAL\",\"valve\":\"OPEN\"}", true);
 
+      Serial.println("✅ Valve OPENED — settle window active");
+
     } else if (cmd == "close") {
-      // ── Scenario 2: user manually closes valve from app ──
-      // Cancel any active settle window as well.
-      isSettling    = false;
-      leakDetected  = false;   // allow re-detection after manual close + re-open
+      // ── User manually closes valve from app ──────────────────────────────
+      // Cancel any active settle window — flow will drop to 0 so there is
+      // nothing to settle. Reset leak state to allow re-detection after the
+      // valve is next opened.
+      isSettling       = false;
+      leakDetected     = false;
       leakConfirmCount = 0;
       closeValve();
       client.publish(TOPIC_VALVE_STATUS, "Closed", true);
+
+      Serial.println("🔴 Valve CLOSED manually");
     }
   }
 
-  // ── Outlet flow data from outlet ESP32 ─────────────────────────────────
+  // ── Outlet flow data published by the outlet ESP32 ─────────────────────
+  // The inlet ESP32 subscribes to these topics to read the outlet sensor
+  // values for its local leak detection comparison.
   if (String(topic) == TOPIC_OUTLET_FLOW) {
     flowRateOutlet = message.toFloat();
   }
   if (String(topic) == TOPIC_OUTLET_TOTAL) {
-    totalOutletML = message.toFloat() * 1000;  // L → mL
+    totalOutletML = message.toFloat() * 1000;  // L → mL for internal accounting
   }
 
   // ── Heartbeat from outlet ESP32 ─────────────────────────────────────────
+  // Receiving a heartbeat means the outlet ESP32 is alive and its flow
+  // readings are fresh. Without a heartbeat, outletAlive becomes false and
+  // leak detection is suppressed (prevents false positives from stale data).
   if (String(topic) == TOPIC_OUTLET_HEARTBEAT) {
     lastHeartbeatMillis = millis();
   }
@@ -208,10 +255,11 @@ void reconnectMQTT() {
       client.subscribe(TOPIC_OUTLET_TOTAL);
       client.subscribe(TOPIC_OUTLET_HEARTBEAT);
 
-      // Publish actual valve state on reconnect
+      // Publish the actual current valve state on reconnect so the server
+      // and app always reflect the physical position after a drop.
       client.publish(TOPIC_VALVE_STATUS, valveState ? "Opened" : "Closed", true);
 
-      // Republish current leak state so app re-syncs on reconnect
+      // Republish current leak state so app re-syncs after reconnect
       if (leakDetected) {
         client.publish(TOPIC_LEAK_ALERT,
           "{\"status\":\"LEAK_DETECTED\",\"valve\":\"CLOSED\",\"note\":\"reconnected\"}",
@@ -238,7 +286,11 @@ void setup() {
   Serial.begin(115200);
   pinMode(SENSOR, INPUT_PULLUP);
   pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, HIGH);   // Energise relay → NC valve opens
+
+  // NC (Normally-Closed) solenoid valve: HIGH energises the relay coil,
+  // which pulls the NC contact open → water flows.
+  digitalWrite(RELAY_PIN, HIGH);
+
   pinMode(LED_BUILTIN, OUTPUT);
 
   attachInterrupt(digitalPinToInterrupt(SENSOR), pulseCounter, FALLING);
@@ -258,13 +310,16 @@ void setup() {
   client.setSocketTimeout(30);
   client.setBufferSize(512);
 
-  // Initialise heartbeat timer so watchdog doesn't trigger immediately on boot
+  // Initialise heartbeat timer so the watchdog does not trip immediately.
+  // The outlet ESP32 has 5 seconds to send its first heartbeat.
   lastHeartbeatMillis = millis();
 
-  // Start with a settle window at boot so the first reading cycle doesn't
-  // trigger a false leak before flow rates have had a chance to stabilise.
-  isSettling        = true;
-  settleStartMillis = millis();
+  // Start with a settle window at boot.
+  // The NC valve opens the moment RELAY_PIN goes HIGH (above). Inlet flow
+  // will rise within the first second; outlet flow takes several seconds to
+  // follow. Starting the settle window here prevents a false leak alarm
+  // during the initial pipe-pressurisation transient.
+  startSettleWindow();
 
   Serial.println("✅ Setup complete — AquaSense Inlet Device Ready");
   Serial.println("📡 Publishing to: " BASE);
@@ -273,6 +328,10 @@ void setup() {
 // ==================== MAIN LOOP ====================
 void loop() {
   if (!client.connected()) reconnectMQTT();
+
+  // Process incoming MQTT messages. If an "open" command arrives here,
+  // mqttCallback sets isSettling=true BEFORE the 1-second timer block runs
+  // its leak check, so the settle window is always active when detection fires.
   client.loop();
 
   long currentMillis = millis();
@@ -282,26 +341,38 @@ void loop() {
     pulseCount = 0;
     previousMillis = currentMillis;
 
+    // Calculate inlet flow rate from pulse count
     flowRateInlet    = ((1000.0 / interval) * pulse1Sec) / calibrationFactor;
     flowMilliLitres  = (flowRateInlet / 60) * 1000;
     totalMilliLitres += flowMilliLitres;
 
     // ── Settle window management ────────────────────────────────────────────
-    // Check if the settle window has expired this tick.
-    if (isSettling && (millis() - settleStartMillis) >= SETTLE_DURATION_MS) {
-      isSettling       = false;
-      leakConfirmCount = 0;   // clean slate — any counts during settle are discarded
-      Serial.println("✅ Settle window expired — leak detection resumed");
+    // The settle window expires when SETTLE_DURATION_MS has elapsed since
+    // the valve opened. At expiry:
+    //   • isSettling is cleared so leak detection resumes next tick
+    //   • leakConfirmCount is reset so any spurious counts accumulated during
+    //     settling (should be 0 anyway due to the reset in the else-if below)
+    //     do not carry over into the active detection window
+    if (isSettling) {
+      unsigned long elapsed = millis() - settleStartMillis;
+      if (elapsed >= SETTLE_DURATION_MS) {
+        isSettling       = false;
+        leakConfirmCount = 0;
+        Serial.print("✅ Settle window expired (");
+        Serial.print(elapsed / 1000);
+        Serial.println("s) — leak detection resumed");
+      }
     }
 
     // ── Heartbeat watchdog ──────────────────────────────────────────────────
+    // Matches server: HEARTBEAT_TIMEOUT_SEC (also 5 s).
     bool outletAlive = (millis() - lastHeartbeatMillis) < HEARTBEAT_TIMEOUT_MS;
 
     // ── Leak detection ──────────────────────────────────────────────────────
-    // Skipped when:
-    //   • Outlet ESP32 is offline (heartbeat timeout)       — prevents false positives
-    //   • leakDetected is true (valve already closed)       — no point re-detecting
-    //   • isSettling (flow rate still stabilising after open) — Scenario 3 fix
+    // All three guards must be true before the mismatch counter increments:
+    //   • outletAlive  — outlet ESP32 is sending fresh readings
+    //   • !leakDetected — no already-confirmed leak (avoids re-triggering)
+    //   • !isSettling   — settle window has expired (avoids valve-open transient)
     if (outletAlive && !leakDetected && !isSettling) {
       float flowDiff = flowRateInlet - flowRateOutlet;
 
@@ -311,11 +382,12 @@ void loop() {
         Serial.println(leakConfirmCount);
 
         if (leakConfirmCount >= LEAK_CONFIRM_THRESHOLD) {
-          // ── Scenario 1: Leak confirmed ──────────────────────────────────
+          // ── Leak confirmed ────────────────────────────────────────────────
           leakDetected     = true;
           leakConfirmCount = 0;
           closeValve();
 
+          // Build JSON payload matching server _process_event_message() spec
           char leakPayload[160];
           snprintf(leakPayload, sizeof(leakPayload),
             "{\"status\":\"LEAK_DETECTED\","
@@ -330,17 +402,24 @@ void loop() {
             leakThreshold
           );
 
+          // retained=true so server gets the alert even after a brief disconnect
           client.publish(TOPIC_LEAK_ALERT,   leakPayload, true);
           client.publish(TOPIC_VALVE_STATUS, "Closed",    true);
-          Serial.println("🚨 LEAK CONFIRMED — Valve closed. Open via app to reset.");
+
+          Serial.println("🚨 LEAK CONFIRMED — Valve closed. Open from app to reset.");
         }
       } else {
+        // Delta is below threshold — reset counter (must be consecutive seconds)
+        if (leakConfirmCount > 0) {
+          Serial.println("ℹ️  Delta normalised — counter reset");
+        }
         leakConfirmCount = 0;
       }
 
     } else if (isSettling) {
-      // During settle: reset counter every tick so no accumulated suspicion
-      // carries over into the active detection window
+      // During the settle window, zero the counter every tick so that no
+      // suspicion counts accumulated just before or during settling carry
+      // over into the active detection window when the window expires.
       leakConfirmCount = 0;
       Serial.print("⏳ Settling... (");
       Serial.print((millis() - settleStartMillis) / 1000);
@@ -350,8 +429,9 @@ void loop() {
 
     } else if (!outletAlive) {
       leakConfirmCount = 0;
-      Serial.println("⚠️  Outlet heartbeat timeout — leak detection suppressed.");
+      Serial.println("⚠️  Outlet heartbeat timeout — leak detection suppressed");
     }
+    // leakDetected=true case: valve already closed, just wait for user action
 
     // ── Publish inlet sensor data ────────────────────────────────────────────
     char flowRateStr[16];
@@ -382,14 +462,14 @@ void loop() {
 // ==================== VALVE CONTROL ====================
 void openValve() {
   valveState = true;
-  digitalWrite(RELAY_PIN, HIGH);   // Energise relay → NC valve opens
+  digitalWrite(RELAY_PIN, HIGH);   // Energise relay coil → NC contact opens → water flows
   digitalWrite(LED_BUILTIN, HIGH);
   Serial.println("✅ Valve Opened");
 }
 
 void closeValve() {
   valveState = false;
-  digitalWrite(RELAY_PIN, LOW);    // De-energise relay → NC valve closes
+  digitalWrite(RELAY_PIN, LOW);    // De-energise relay coil → NC contact closes → water blocked
   digitalWrite(LED_BUILTIN, LOW);
   Serial.println("🚨 Valve Closed");
 }
