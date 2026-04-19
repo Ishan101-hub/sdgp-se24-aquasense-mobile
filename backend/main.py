@@ -190,7 +190,7 @@ _env = os.getenv("ENVIRONMENT", "production").lower()
 
 _production_origins = [
     o.strip()
-    for o in os.getenv("CORS_ALLOWED_ORIGINS", "https://app.aquasense.com").split(",")
+    for o in os.getenv("CORS_ALLOWED_ORIGINS", "https://aquasense-sdgp.web.app").split(",")
     if o.strip()
 ]
 _dev_origins = [

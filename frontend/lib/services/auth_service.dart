@@ -6,7 +6,7 @@ import 'auth_storage.dart';
 
 class AuthService {
   // ── Base URLs ──────────────────────────────────────────
-  static const String _host = 'http://192.168.8.183:8000';
+  static const String _host = 'https://sdgp-se24-aquasense-mobile.onrender.com';
   static const String baseUrl = '$_host/auth';
   static const _storage = FlutterSecureStorage();
 
