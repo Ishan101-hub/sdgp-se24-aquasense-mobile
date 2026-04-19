@@ -90,8 +90,11 @@ class _ZoneCircle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isOverLimit = zone.used >= zone.average;
-    final double progress  = isOverLimit
+    // final bool isOverLimit = zone.used >= zone.average;
+    final bool isOverLimit = zone.average > 0 && zone.used >= zone.average;
+    final double progress = zone.average <= 0
+    ? 0.0
+    : isOverLimit
         ? 1.0
         : (zone.used / zone.average).clamp(0.0, 1.0);
     final Color arcColor   = isOverLimit
