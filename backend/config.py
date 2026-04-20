@@ -73,7 +73,7 @@ class Settings(BaseSettings):
 
     # ── CORS ──────────────────────────────────────────────────
     ENVIRONMENT:          str = "production"
-    CORS_ALLOWED_ORIGINS: str = "https://app.aquasense.com"
+    CORS_ALLOWED_ORIGINS: str = "https://aquasense-sdgp.web.app"
 
     class Config:
         env_file = ".env"

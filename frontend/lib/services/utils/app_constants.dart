@@ -4,7 +4,8 @@ class AppConstants {
   // Using 127.0.0.1 for Chrome browser testing
   // Change back to http://10.0.2.2:8000 when testing on Android emulator
   // ─────────────────────────────────────────────
-  static const String baseUrl = "http://127.0.0.1:8000";
+  static const String baseUrl =
+      'https://sdgp-se24-aquasense-mobile.onrender.com';
 
   // ─────────────────────────────────────────────
   // AUTH ENDPOINTS
@@ -27,7 +28,7 @@ class AppConstants {
   static const String updateProfile = "/user/update-profile";
   static const String deleteAccount = "/user/delete-account";
   static const String registerDevice = "/user/register-device";
- 
+
   // ─────────────────────────────────────────────
   // TERMS ENDPOINTS
   // ─────────────────────────────────────────────

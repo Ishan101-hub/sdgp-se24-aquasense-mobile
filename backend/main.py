@@ -1,25 +1,5 @@
 # main.py
 # AquaSense — Unified FastAPI application entry point
-#
-# Registers all routers from both backends:
-#
-# Auth system (Kulith):
-#   /auth/*       — register, login, OTP, 2FA, refresh, logout, password
-#   /user/*       — profile, update, device registration, delete
-#   /auth/google  — Google OAuth
-#   /security/*   — 2FA toggle, login alerts, auto-lock
-#   /terms/*      — terms acceptance
-#   /district/*   — Sri Lanka district selection
-#
-# IoT system (main backend):
-#   /networks/*   — network management
-#   /zones/*      — zone management
-#   /devices/*    — device management and valve control
-#   /analytics/*  — live data, daily/monthly usage, zone summaries
-#   /mobile/*     — Flutter-shaped convenience endpoints
-#
-# Background tasks:
-#   MQTT listener, batch flush, nightly aggregation
 
 import asyncio
 import logging
@@ -40,17 +20,19 @@ from aggregation import schedule_aggregation
 from leak_service import LeakDetectionService, set_leak_service, EventType
 
 # ── Auth routers (Kulith) ─────────────────────────────────────
-from app.routes.auth_routes     import router as auth_router
-from app.routes.user_routes     import router as user_router
+from app.routes.auth_routes        import router as auth_router
+from app.routes.user_routes        import router as user_router
 from app.routes.google_auth_routes import router as google_auth_router
-from app.routes.security_routes import router as security_router
-from app.routes.terms_routes    import router as terms_router
-from app.routes.district_routes import router as district_router
+from app.routes.security_routes    import router as security_router
+from app.routes.terms_routes       import router as terms_router
+from app.routes.district_routes    import router as district_router
 
 # ── IoT routers (main backend) ────────────────────────────────
 from analytics_router import router as analytics_router
 from device_router    import router as device_router, set_publish_queue
 from mobile_router    import router as mobile_router, set_mobile_publish_queue
+from usage_router     import router as usage_router
+from reports_router import router as reports_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -74,8 +56,6 @@ async def lifespan(app: FastAPI):
     set_mobile_publish_queue(publish_queue)
 
     # ── Leak detection callbacks ──────────────────────────────────────────────
-    # These run when the LeakDetectionService confirms a leak or clears one.
-    # They handle the DB writes and MQTT publishes so the service stays pure.
 
     async def _on_event_created(
         zone_id: int, event_type: EventType, message: str, details: dict
@@ -86,17 +66,18 @@ async def lifespan(app: FastAPI):
         from sqlalchemy import select
         try:
             async with AsyncSessionLocal() as db:
-                # Get outlet device for this zone to populate FK columns
+                # Use the INLET device for FK columns — it owns the valve and
+                # is the source of leak detection. The outlet device has no valve.
                 dev_result = await db.execute(
                     select(Device).where(
                         Device.zone_id     == zone_id,
-                        Device.sensor_type == "outlet",
+                        Device.sensor_type == "inlet",
                         Device.status      == "active",
                     ).limit(1)
                 )
                 device = dev_result.scalar_one_or_none()
                 if not device:
-                    logger.warning("on_event_created: no outlet device for zone_id=%d", zone_id)
+                    logger.warning("on_event_created: no inlet device for zone_id=%d", zone_id)
                     return
                 db.add(Event(
                     device_id   = device.device_id,
@@ -112,15 +93,16 @@ async def lifespan(app: FastAPI):
 
     async def _on_valve_command(zone_id: int, action: str) -> None:
         """
-        Close the outlet valve for a zone — backup action after leak confirmed.
-        Looks up zone+network slugs and all outlet device_ids, then publishes.
+        Send valve command to the inlet ESP32 — backup action after leak confirmed.
+        The valve relay is physically on the inlet device. Publishing to the
+        outlet device's topic would be silently ignored by the inlet ESP32.
         """
         from database import AsyncSessionLocal
         from models import Device, Zone, Network, ValveLog
         from sqlalchemy import select, update
         try:
             async with AsyncSessionLocal() as db:
-                # Get zone + network slugs for MQTT topic
+                # Get zone + network slugs for MQTT topic construction
                 zone_result = await db.execute(
                     select(Zone.zone_id, Network.network_id)
                     .join(Network, Zone.network_id == Network.id)
@@ -132,11 +114,11 @@ async def lifespan(app: FastAPI):
                     return
                 zone_slug, network_slug = zone_net.zone_id, zone_net.network_id
 
-                # All active outlet devices in this zone
+                # Query INLET devices — the valve relay is on the inlet ESP32
                 dev_result = await db.execute(
                     select(Device).where(
                         Device.zone_id     == zone_id,
-                        Device.sensor_type == "outlet",
+                        Device.sensor_type == "inlet",
                         Device.status      == "active",
                     )
                 )
@@ -153,6 +135,7 @@ async def lifespan(app: FastAPI):
                         action       = action,
                         source       = "auto_leak",
                     ))
+                    # MQTT topic → aquasense/{network}/{zone}/{inlet_device_id}/valve/command
                     await publish_queue.put((network_slug, zone_slug, device.device_id, action))
                     logger.warning(
                         "BACKUP VALVE CMD zone=%d device=%s action=%s",
@@ -175,8 +158,8 @@ async def lifespan(app: FastAPI):
         on_valve_command = _on_valve_command,
         on_event_created = _on_event_created,
     )
-    set_leak_service(leak_svc)           # makes it available via get_leak_service()
-    mqtt_set_leak_service(leak_svc)      # wires it into mqtt_service message handlers
+    set_leak_service(leak_svc)
+    mqtt_set_leak_service(leak_svc)
 
     tasks = [
         asyncio.create_task(start_mqtt_listener(publish_queue), name="mqtt"),
@@ -205,41 +188,31 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ── CORS ──────────────────────────────────────────────────────
-_env = os.getenv("ENVIRONMENT", "development").lower()
+_env = os.getenv("ENVIRONMENT", "production").lower()
 
 _production_origins = [
     o.strip()
-    for o in os.getenv("CORS_ALLOWED_ORIGINS", "https://app.aquasense.com").split(",")
+    for o in os.getenv("CORS_ALLOWED_ORIGINS", "https://aquasense-sdgp.web.app").split(",")
     if o.strip()
 ]
-
-# Flutter web runs on a random port during development (e.g. 52xxx)
-# so we allow all localhost/127.0.0.1 origins in development
 _dev_origins = [
     "http://localhost",
     "http://localhost:3000",
-    "http://localhost:5000",
-    "http://localhost:8000",
-    "http://localhost:8080",
-    "http://localhost:8081",
-    "http://localhost:52000",
-    "http://localhost:52001",
-    "http://127.0.0.1",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5000",
     "http://127.0.0.1:8000",
+    "https://sdgp-se24-aquasense-mobile.onrender.com",
+    "http://192.168.8.183",
 ]
-
 _allowed_origins = (
     _production_origins + _dev_origins if _env == "development" else _production_origins
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_allowed_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
+    max_age=600,
 )
 
 # ── Global exception handler ──────────────────────────────────
@@ -264,6 +237,8 @@ app.include_router(district_router)
 app.include_router(device_router)
 app.include_router(analytics_router)
 app.include_router(mobile_router)
+app.include_router(usage_router)
+app.include_router(reports_router)
 
 
 @app.get("/health", tags=["system"])

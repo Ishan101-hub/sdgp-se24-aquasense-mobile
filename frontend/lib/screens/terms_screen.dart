@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 
 class TermsScreen extends StatefulWidget {
   const TermsScreen({super.key});
@@ -8,16 +9,41 @@ class TermsScreen extends StatefulWidget {
 }
 
 class _TermsScreenState extends State<TermsScreen> {
-  bool _acceptTerms = false;
-
-  // bool _acceptPrivacy = false;
-  // bool _acceptDataCollection = false;
-  // bool _acceptCookies = false;
-  // bool _acceptMarketing = false;
+  bool _acceptTerms  = false;
+  bool _isSaving     = false;
 
   bool get _canProceed => _acceptTerms;
-  // bool get _canProceed =>
-  //     _acceptTerms && _acceptPrivacy && _acceptDataCollection;
+
+  // ── Save terms to backend ────────────────────────────────
+  Future<void> _onConfirm() async {
+    setState(() => _isSaving = true);
+
+    final result = await AuthService.saveTerms();
+
+    setState(() => _isSaving = false);
+
+    if (result['success']) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Agreements saved successfully!'),
+          backgroundColor: Color(0xFF0A1B6F),
+        ),
+      );
+      // Navigate to home and clear all previous routes
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/home',
+        (route) => false,
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message']),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -139,43 +165,6 @@ class _TermsScreenState extends State<TermsScreen> {
                     isRequired: true,
                     onChanged: (val) => setState(() => _acceptTerms = val!),
                   ),
-
-                  // _buildDivider(),
-                  // _buildCheckTile(
-                  //   title: 'I accept the Privacy Policy',
-                  //   subtitle: 'Required — covers how your data is handled',
-                  //   value: _acceptPrivacy,
-                  //   isRequired: true,
-                  //   onChanged: (val) => setState(() => _acceptPrivacy = val!),
-                  // ),
-
-                  // _buildDivider(),
-                  // _buildCheckTile(
-                  //   title: 'I consent to IoT Data Collection',
-                  //   subtitle: 'Required — sensor data, usage logs',
-                  //   value: _acceptDataCollection,
-                  //   isRequired: true,
-                  //   onChanged: (val) =>
-                  //       setState(() => _acceptDataCollection = val!),
-                  // ),
-
-                  // _buildDivider(),
-                  // _buildCheckTile(
-                  //   title: 'I accept Cookie Policy',
-                  //   subtitle: 'Optional — analytics & session cookies',
-                  //   value: _acceptCookies,
-                  //   onChanged: (val) => setState(() => _acceptCookies = val!),
-                  // ),
-
-                  // _buildDivider(),
-                  // _buildCheckTile(
-                  //   title: 'Receive tips & product updates',
-                  //   subtitle: 'Optional — marketing communications',
-                  //   value: _acceptMarketing,
-                  //   isLast: true,
-                  //   onChanged: (val) =>
-                  //       setState(() => _acceptMarketing = val!),
-                  // ),
                 ],
               ),
             ),
@@ -192,16 +181,7 @@ class _TermsScreenState extends State<TermsScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _canProceed
-                    ? () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Agreements saved successfully!'),
-                            backgroundColor: Color(0xFF0A1B6F),
-                          ),
-                        );
-                      }
-                    : null,
+                onPressed: _canProceed && !_isSaving ? _onConfirm : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0A1B6F),
                   disabledBackgroundColor: Colors.grey[300],
@@ -210,14 +190,23 @@ class _TermsScreenState extends State<TermsScreen> {
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                child: Text(
-                  'Confirm & Save',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: _canProceed ? Colors.white : Colors.grey,
-                  ),
-                ),
+                child: _isSaving
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(
+                        'Confirm & Save',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: _canProceed ? Colors.white : Colors.grey,
+                        ),
+                      ),
               ),
             ),
           ],
@@ -237,8 +226,8 @@ class _TermsScreenState extends State<TermsScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Padding(
-      padding: EdgeInsets.only(
-          left: 16, right: 8, top: 4, bottom: isLast ? 4 : 0),
+      padding:
+          EdgeInsets.only(left: 16, right: 8, top: 4, bottom: isLast ? 4 : 0),
       child: Row(
         children: [
           Expanded(
@@ -267,8 +256,7 @@ class _TermsScreenState extends State<TermsScreen> {
                 const SizedBox(height: 3),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                      fontSize: 11.5, color: Colors.grey),
+                  style: const TextStyle(fontSize: 11.5, color: Colors.grey),
                 ),
                 const SizedBox(height: 12),
               ],

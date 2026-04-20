@@ -1,0 +1,17 @@
+name: Deploy Backend to Render
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Render Deploy
+        run: |
+          echo "Triggering Render deployment..."
+          curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
+          echo "Deploy triggered successfully"

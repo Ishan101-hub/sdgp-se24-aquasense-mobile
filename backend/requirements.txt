@@ -1,12 +1,41 @@
+# Web framework
 fastapi
-uvicorn
+uvicorn[standard]
+
+# Database (async PostgreSQL / Supabase)
 sqlalchemy
 asyncpg
-python-jose[cryptography]
+psycopg2-binary
+greenlet
+
+# Authentication
 passlib[bcrypt]
+python-jose[cryptography]
+
+# Encryption
+cryptography
+
+# MQTT (async)
+aiomqtt
+
+# Configuration
 pydantic-settings
+python-dotenv
+
+# Rate limiting
 slowapi
-paho-mqtt
-python-multipart
-email-validator
+
+# HTTP client
 httpx
+
+# Core async support
+anyio
+
+# File uploads
+python-multipart
+
+# Validation
+email-validator
+
+# PDF generation
+reportlab
