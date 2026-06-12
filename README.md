@@ -5,9 +5,11 @@
 AquaSense is a full-stack IoT solution designed to help households monitor water usage, detect leakages in real time, and control affected water lines using automated valve control. The system combines ESP32-based hardware, MQTT communication, a FastAPI backend, a Supabase PostgreSQL database, and a Flutter mobile/web application.
 
 <p align="center">
-  <img src="docs/screenshots/home-dashboard-1.png" alt="AquaSense Dashboard" width="260" />
-  <img src="docs/screenshots/leakage-monitoring.png" alt="AquaSense Leakage Monitoring" width="260" />
-  <img src="docs/screenshots/usage-report.png" alt="AquaSense Usage Report" width="260" />
+  <img src="docs/screenshots/home-dashboard-1.jpeg" alt="AquaSense Dashboard" width="260" />
+  <img src="docs/screenshots/home-dashboard-2.jpeg" alt="AquaSense Dashboard" width="260" />
+  <img src="docs/screenshots/leakage-monitoring.jpeg" alt="AquaSense Leakage Monitoring" width="260" />
+  <img src="docs/screenshots/usage-report.jpeg" alt="AquaSense Usage Report" width="260" />
+  <img src="docs/screenshots/services-screen.jpeg" alt="AquaSense Services Screen" width="260" />
 </p>
 
 ---
@@ -103,19 +105,145 @@ More diagrams are available in [`docs/diagrams`](docs/diagrams).
 
 ```text
 .
-├── backend/                 # FastAPI backend, MQTT listener, analytics, auth APIs
-├── frontend/                # Flutter mobile/web application
-├── firmware/                # ESP32 firmware and IoT device logic
-├── database/                # Database schema, migrations, seed data if applicable
-├── docs/                    # Architecture, deployment, testing, API and case study docs
-├── team/                    # Team roles and contribution summaries
-├── assets/                  # Logos, branding, posters, social media assets
-├── .github/                 # Pull request templates, issue templates, GitHub Actions
+sdgp-se24-aquasense-mobile/
+│
 ├── README.md
-├── CONTRIBUTING.md
+├── LICENSE
 ├── CHANGELOG.md
+├── CONTRIBUTING.md
+├── CODE_OF_CONDUCT.md
 ├── SECURITY.md
-└── LICENSE
+├── SUPPORT.md
+├── .gitignore
+├── .env.example
+│
+├── backend/
+│   ├── main.py
+│   ├── run.py
+│   ├── config.py
+│   ├── database.py
+│   ├── models.py
+│   ├── requirements.txt
+│   │
+│   ├── mqtt_service.py
+│   ├── leak_service.py
+│   ├── aggregation.py
+│   │
+│   ├── analytics_router.py
+│   ├── device_router.py
+│   ├── mobile_router.py
+│   ├── usage_router.py
+│   │
+│   └── app/
+│       └── routes/
+│           ├── auth_routes.py
+│           ├── user_routes.py
+│           ├── google_auth_routes.py
+│           ├── security_routes.py
+│           ├── terms_routes.py
+│           └── district_routes.py
+│
+├── frontend/
+│   ├── pubspec.yaml
+│   ├── pubspec.lock
+│   ├── firebase.json
+│   ├── .firebaserc
+│   │
+│   ├── android/
+│   ├── ios/
+│   ├── linux/
+│   ├── macos/
+│   ├── web/
+│   ├── windows/
+│   │
+│   └── lib/
+│       ├── main.dart
+│       ├── theme_provider.dart
+│       │
+│       ├── models/
+│       │
+│       ├── screens/
+│       │   ├── splash_screen.dart
+│       │   ├── login_page.dart
+│       │   ├── registration_page.dart
+│       │   ├── home_screen.dart
+│       │   ├── home_page.dart
+│       │   ├── leakages_page.dart
+│       │   ├── usage_screen.dart
+│       │   ├── services_screen.dart
+│       │   ├── profile_screen.dart
+│       │   ├── settings_screen.dart
+│       │   ├── security_screen.dart
+│       │   ├── terms_screen.dart
+│       │   ├── theme_screen.dart
+│       │   ├── data_service.dart
+│       │   ├── installation_screen.dart
+│       │   ├── installation_guide_screen.dart
+│       │   ├── iot_connectivity_screen.dart
+│       │   ├── plumbers_screen.dart
+│       │   ├── report_issue_screen.dart
+│       │   ├── support_screen.dart
+│       │   ├── user_manual_screen.dart
+│       │   └── nwsdb_coordination_screen.dart
+│       │
+│       ├── services/
+│       │   ├── api_service.dart
+│       │   └── auth_service.dart
+│       │
+│       └── widgets/
+│           ├── bell_button.dart
+│           ├── custom_bottom_nav.dart
+│           ├── daily_consumption_card.dart
+│           ├── leakage_card.dart
+│           ├── service_card.dart
+│           ├── support_card.dart
+│           ├── today_card.dart
+│           ├── usage_chart_card.dart
+│           ├── usage_summary_card.dart
+│           └── water_status_card.dart
+│
+├── docs/
+│   ├── ARCHITECTURE.md
+│   ├── API.md
+│   ├── DEPLOYMENT.md
+│   ├── HARDWARE.md
+│   ├── TESTING.md
+│   ├── CONTRIBUTIONS.md
+│   ├── CASE_STUDY.md
+│   ├── PORTFOLIO.md
+│   ├── SOCIAL_MEDIA.md
+│   ├── BRANDING.md
+│   ├── SCREENSHOTS_GUIDE.md
+│   ├── PROJECT_GOVERNANCE.md
+│   ├── REPORT_BASED_SUMMARY.md
+│   ├── REPOSITORY_SETUP.md
+│   │
+│   ├── diagrams/
+│   │   ├── system-architecture.png
+│   │   ├── data-flow.png
+│   │   └── deployment-flow.png
+│   │
+│   └── screenshots/
+│       ├── home-dashboard.png
+│       ├── leakage-monitoring.png
+│       ├── usage-report.png
+│       ├── services-screen.png
+│       ├── settings-profile.png
+│       └── theme-screens.png
+│
+├── team/
+│   ├── CONTRIBUTORS.md
+│   └── ROLES.md
+│
+└── .github/
+    ├── PULL_REQUEST_TEMPLATE.md
+    ├── ISSUE_TEMPLATE/
+    │   ├── bug_report.md
+    │   └── feature_request.md
+    │
+    └── workflows/
+        ├── frontend-check.yml
+        └── backend-check.yml
 ```
 
 ---
