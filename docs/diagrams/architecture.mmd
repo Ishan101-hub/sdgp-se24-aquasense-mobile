@@ -1,0 +1,18 @@
+flowchart LR
+    ESP32[ESP32 Devices]
+    Sensors[Flow Sensors]
+    Valves[Solenoid Valves]
+    MQTT[HiveMQ MQTT Broker]
+    API[FastAPI Backend]
+    DB[(Supabase PostgreSQL)]
+    APP[Flutter App]
+    EMAIL[Gmail SMTP]
+
+    Sensors --> ESP32
+    ESP32 --> Valves
+    ESP32 --> MQTT
+    MQTT --> API
+    API --> DB
+    APP --> API
+    API --> EMAIL
+    API --> MQTT

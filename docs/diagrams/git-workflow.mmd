@@ -1,0 +1,18 @@
+gitGraph
+    commit id: "initial"
+    branch dev
+    checkout dev
+    commit id: "integration"
+    branch feature-ishan-20232686
+    checkout feature-ishan-20232686
+    commit id: "iot firmware"
+    checkout dev
+    merge feature-ishan-20232686
+    branch feature-lathmi-20232796
+    checkout feature-lathmi-20232796
+    commit id: "backend APIs"
+    checkout dev
+    merge feature-lathmi-20232796
+    checkout main
+    merge dev
+    commit id: "production release"
