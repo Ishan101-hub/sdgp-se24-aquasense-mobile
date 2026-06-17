@@ -104,7 +104,6 @@ More diagrams are available in [`docs/diagrams`](docs/diagrams).
 ## Repository Structure
 
 ```text
-.
 sdgp-se24-aquasense-mobile/
 │
 ├── README.md
@@ -117,90 +116,103 @@ sdgp-se24-aquasense-mobile/
 ├── .gitignore
 ├── .env.example
 │
+├── frontend/
+│   ├── lib
+│   │   ├── models
+│   │   │   ├── app_notification.dart
+│   │   │   ├── mobile_models.dart
+│   │   │   └── usage_summary.dart
+│   │   │
+│   │   ├── screens
+│   │   │   ├── data_service.dart
+│   │   │   ├── home_page.dart
+│   │   │   ├── home_screen.dart
+│   │   │   ├── installation_guide_screen.dart
+│   │   │   ├── installation_screen.dart
+│   │   │   ├── iot_connectivity_screen.dart
+│   │   │   ├── leakages_page.dart
+│   │   │   ├── login_page.dart
+│   │   │   ├── nwsdb_coordination_screen.dart
+│   │   │   ├── plumbers_screen.dart
+│   │   │   ├── profile_screen.dart
+│   │   │   ├── registration_page.dart
+│   │   │   ├── report_issue_screen.dart
+│   │   │   ├── security_screen.dart
+│   │   │   ├── services_screen.dart
+│   │   │   ├── settings_screen.dart
+│   │   │   ├── splash_screen.dart
+│   │   │   ├── support_screen.dart
+│   │   │   ├── terms_screen.dart
+│   │   │   ├── theme_screen.dart
+│   │   │   ├── usage_screen.dart
+│   │   │   └── user_manual_screen.dart
+│   │   │
+│   │   ├── main.dart
+│   │   └── theme_provider.dart
+│   │
+│   ├── services
+│   │   ├── utils
+│   │   │   └── app_constants.dart
+│   │   │
+│   │   ├── widgets
+│   │   │   ├── bell_button.dart
+│   │   │   ├── custom_bottom_nav.dart
+│   │   │   ├── daily_consumption_card.dart
+│   │   │   ├── leakage_card.dart
+│   │   │   ├── service_card.dart
+│   │   │   ├── support_card.dart
+│   │   │   ├── today_card.dart
+│   │   │   ├── usage_chart_card.dart
+│   │   │   ├── usage_summary_card.dart
+│   │   │   └── water_status_card.dart
+│   │   │
+│   │   ├── api_service.dart
+│   │   ├── auth_service.dart
+│   │   └── auth_storage.dart
+│
 ├── backend/
-│   ├── main.py
-│   ├── run.py
+│   ├── __pycache__/
+│   │
+│   ├── app
+│   │   └── routes
+│   │       ├── auth_routes.py
+│   │       ├── district_routes.py
+│   │       ├── google_auth_routes.py
+│   │       ├── security_routes.py
+│   │       ├── terms_routes.py
+│   │       └── user_routes.py
+│   │
+│   ├── utils
+│   │   ├── encryption.py
+│   │   ├── lock_user.py
+│   │   └── __init__.py
+│   │
+│   ├── .env
+│   ├── .gitkeep
+│   ├── aggregation.py
+│   ├── analytics_router.py
+│   ├── auth.py
 │   ├── config.py
 │   ├── database.py
-│   ├── models.py
-│   ├── requirements.txt
-│   │
-│   ├── mqtt_service.py
-│   ├── leak_service.py
-│   ├── aggregation.py
-│   │
-│   ├── analytics_router.py
 │   ├── device_router.py
+│   ├── email_utils.py
+│   ├── leak_service.py
+│   ├── main.py
 │   ├── mobile_router.py
-│   ├── usage_router.py
-│   │
-│   └── app/
-│       └── routes/
-│           ├── auth_routes.py
-│           ├── user_routes.py
-│           ├── google_auth_routes.py
-│           ├── security_routes.py
-│           ├── terms_routes.py
-│           └── district_routes.py
+│   ├── models.py
+│   ├── mqtt_service.py
+│   ├── reports_router.py
+│   ├── requirements.txt
+│   ├── run.py
+│   ├── schemas.py
+│   └── usage_router.py
 │
-├── frontend/
-│   ├── pubspec.yaml
-│   ├── pubspec.lock
-│   ├── firebase.json
-│   ├── .firebaserc
+├── iot/
+│   ├── in_mqtt_1_2_3/
+│   │   └── in_mqtt_1_2_3.ino
 │   │
-│   ├── android/
-│   ├── ios/
-│   ├── linux/
-│   ├── macos/
-│   ├── web/
-│   ├── windows/
-│   │
-│   └── lib/
-│       ├── main.dart
-│       ├── theme_provider.dart
-│       │
-│       ├── models/
-│       │
-│       ├── screens/
-│       │   ├── splash_screen.dart
-│       │   ├── login_page.dart
-│       │   ├── registration_page.dart
-│       │   ├── home_screen.dart
-│       │   ├── home_page.dart
-│       │   ├── leakages_page.dart
-│       │   ├── usage_screen.dart
-│       │   ├── services_screen.dart
-│       │   ├── profile_screen.dart
-│       │   ├── settings_screen.dart
-│       │   ├── security_screen.dart
-│       │   ├── terms_screen.dart
-│       │   ├── theme_screen.dart
-│       │   ├── data_service.dart
-│       │   ├── installation_screen.dart
-│       │   ├── installation_guide_screen.dart
-│       │   ├── iot_connectivity_screen.dart
-│       │   ├── plumbers_screen.dart
-│       │   ├── report_issue_screen.dart
-│       │   ├── support_screen.dart
-│       │   ├── user_manual_screen.dart
-│       │   └── nwsdb_coordination_screen.dart
-│       │
-│       ├── services/
-│       │   ├── api_service.dart
-│       │   └── auth_service.dart
-│       │
-│       └── widgets/
-│           ├── bell_button.dart
-│           ├── custom_bottom_nav.dart
-│           ├── daily_consumption_card.dart
-│           ├── leakage_card.dart
-│           ├── service_card.dart
-│           ├── support_card.dart
-│           ├── today_card.dart
-│           ├── usage_chart_card.dart
-│           ├── usage_summary_card.dart
-│           └── water_status_card.dart
+│   └── Out_MQTT_1.1.1/
+│       └── Out_MQTT_1.1.1.ino
 │
 ├── docs/
 │   ├── ARCHITECTURE.md
@@ -244,6 +256,7 @@ sdgp-se24-aquasense-mobile/
     └── workflows/
         ├── frontend-check.yml
         └── backend-check.yml
+
 ```
 
 ---
