@@ -1,0 +1,17 @@
+flowchart TD
+    GitHub[GitHub Repository]
+    Firebase[Firebase Hosting]
+    Render[Render Web Service]
+    Supabase[(Supabase PostgreSQL)]
+    HiveMQ[HiveMQ Cloud]
+    ESP32[ESP32 Devices]
+    User[User Browser / Mobile]
+
+    GitHub --> Render
+    GitHub --> Firebase
+    User --> Firebase
+    Firebase --> Render
+    Render --> Supabase
+    ESP32 --> HiveMQ
+    HiveMQ --> Render
+    Render --> HiveMQ

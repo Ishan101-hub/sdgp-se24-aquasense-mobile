@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: sdgp-se24-aquasense-mobile
+    env: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: python run.py
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://aquasense-sdgp.web.app
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: MQTT_BROKER_HOST
+        sync: false
+      - key: MQTT_USERNAME
+        sync: false
+      - key: MQTT_PASSWORD
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false

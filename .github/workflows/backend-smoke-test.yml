@@ -1,0 +1,14 @@
+name: Backend Smoke Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check backend health endpoint
+        run: |
+          curl -f https://sdgp-se24-aquasense-mobile.onrender.com/health

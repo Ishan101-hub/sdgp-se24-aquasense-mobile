@@ -1,0 +1,52 @@
+erDiagram
+    USER ||--o{ NETWORK : owns
+    NETWORK ||--o{ ZONE : contains
+    ZONE ||--o{ DEVICE : has
+    DEVICE ||--o{ READING : produces
+    DEVICE ||--o{ VALVE_LOG : logs
+    ZONE ||--o{ EVENT : triggers
+    ZONE ||--o{ DAILY_SUMMARY : aggregates
+
+    USER {
+      int id
+      string email
+      string password_hash
+    }
+    NETWORK {
+      int id
+      string network_id
+      int user_id
+    }
+    ZONE {
+      int id
+      string zone_id
+      int network_id
+      string zone_type
+    }
+    DEVICE {
+      int id
+      string device_id
+      string sensor_type
+      string valve_state
+    }
+    READING {
+      int id
+      float flow_rate
+      float volume
+      datetime created_at
+    }
+    EVENT {
+      int id
+      string event_type
+      string description
+    }
+    VALVE_LOG {
+      int id
+      string action
+      string source
+    }
+    DAILY_SUMMARY {
+      int id
+      date day
+      float total_volume
+    }

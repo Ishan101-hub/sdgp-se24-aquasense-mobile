@@ -1,0 +1,11 @@
+sequenceDiagram
+    participant ESP32
+    participant HiveMQ
+    participant Backend
+
+    ESP32->>HiveMQ: aquasense/network/zone/device/readings
+    Backend->>HiveMQ: Subscribe aquasense/#
+    HiveMQ-->>Backend: Sensor payload
+    Backend->>Backend: Leak detection
+    Backend->>HiveMQ: aquasense/network/zone/device/valve/command
+    HiveMQ-->>ESP32: CLOSE / OPEN command

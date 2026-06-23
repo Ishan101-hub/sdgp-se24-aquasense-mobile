@@ -1,0 +1,14 @@
+sequenceDiagram
+    participant ESP32
+    participant HiveMQ
+    participant Backend
+    participant Supabase
+    participant Flutter
+
+    ESP32->>HiveMQ: Publish flow readings
+    HiveMQ->>Backend: MQTT message received
+    Backend->>Backend: Validate + detect leak
+    Backend->>Supabase: Batch insert readings
+    Flutter->>Backend: Request analytics
+    Backend->>Supabase: Query summaries
+    Backend-->>Flutter: Return JSON data
