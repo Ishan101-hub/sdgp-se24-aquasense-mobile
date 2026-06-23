@@ -4,8 +4,13 @@ class AppConstants {
   // Using 127.0.0.1 for Chrome browser testing
   // Change back to http://10.0.2.2:8000 when testing on Android emulator
   // ─────────────────────────────────────────────
-  static const String baseUrl =
-      'https://sdgp-se24-aquasense-mobile.onrender.com';
+
+  // http://192.168.1.3:8000 >> https://sdgp-se24-aquasense-mobile.onrender.com
+
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://192.168.1.3:8000',
+  );
 
   // ─────────────────────────────────────────────
   // AUTH ENDPOINTS

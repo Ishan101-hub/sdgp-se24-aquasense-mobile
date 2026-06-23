@@ -195,11 +195,13 @@ _production_origins = [
     for o in os.getenv("CORS_ALLOWED_ORIGINS", "https://aquasense-sdgp.web.app").split(",")
     if o.strip()
 ]
+# http://192.168.1.3:8000 >> https://sdgp-se24-aquasense-mobile.onrender.com
 _dev_origins = [
     "http://localhost",
     "http://localhost:3000",
     "http://127.0.0.1:8000",
-    "https://sdgp-se24-aquasense-mobile.onrender.com",
+    "http://192.168.1.3:8000",
+    "http://192.168.8.183:8000",
     "http://192.168.8.183",
 ]
 _allowed_origins = (

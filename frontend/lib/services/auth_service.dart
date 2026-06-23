@@ -3,10 +3,12 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'auth_storage.dart';
+import '../services/utils/app_constants.dart';
+
 
 class AuthService {
   // ── Base URLs ──────────────────────────────────────────
-  static const String _host = 'https://sdgp-se24-aquasense-mobile.onrender.com';
+  static const String _host = AppConstants.baseUrl;
   static const String baseUrl = '$_host/auth';
   static const _storage = FlutterSecureStorage();
 
