@@ -11,14 +11,14 @@ import '../models/usage_summary.dart';
 import '../models/app_notification.dart';
 import '../models/mobile_models.dart';
 import '../services/auth_storage.dart';
+import '../services/utils/app_constants.dart';
 
 class ApiService {
   // ── Server URL ────────────────────────────────────────────────────────────
   // Same WiFi (real device): 'http://192.168.x.x:8000'
   // Android emulator:        'http://10.0.2.2:8000'
   // Deployed:                'https://your-app.onrender.com'
-  static const String baseUrl =
-      'https://sdgp-se24-aquasense-mobile.onrender.com';
+  static const String baseUrl = AppConstants.baseUrl;
   // ── Shared header builder ─────────────────────────────────────────────────
   Future<Map<String, String>> _authHeaders({String? accept}) async {
     final token = await AuthStorage.getToken();

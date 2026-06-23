@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:aqua_sense/services/auth_service.dart';
+import 'package:aqua_sense/services/auth_storage.dart';
 
 class SplashScreen extends StatefulWidget {
   @override
@@ -20,25 +22,52 @@ class _SplashScreenState extends State<SplashScreen>
       duration: const Duration(milliseconds: 1200),
     );
 
-    _fadeAnim = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
-    );
+    _fadeAnim = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
 
-    _scaleAnim = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
+    _scaleAnim = Tween<double>(
+      begin: 0.8,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
     _controller.forward();
-    _navigateToRegistration();
+    _navigateAfterSplash();
   }
 
-  void _navigateToRegistration() async {
-    await Future.delayed(const Duration(seconds: 3));
+  // void _navigateToRegistration() async {
+  //   await Future.delayed(const Duration(seconds: 3));
 
-    if (!mounted) return;
+  //   if (!mounted) return;
 
+  //   Navigator.pushReplacementNamed(context, '/register');
+  // }
+
+  void _navigateAfterSplash() async {
+  await Future.delayed(const Duration(seconds: 3));
+
+  if (!mounted) return;
+
+  // AuthService uses FlutterSecureStorage — check access token directly
+  final String? token = await AuthService.getAccessToken();
+
+  if (token == null) {
+    // No token ever saved → first-time user
     Navigator.pushReplacementNamed(context, '/register');
+  } else {
+    // Token exists → verify it's still valid with a lightweight API call
+    final result = await AuthService.getProfile();
+
+    if (result['success'] == true) {
+      Navigator.pushReplacementNamed(context, '/home');
+    } else {
+      // Token expired or rejected by server
+      await AuthService.clearTokens();
+      Navigator.pushReplacementNamed(context, '/login');
+    }
   }
+}
 
   @override
   void dispose() {
@@ -59,9 +88,7 @@ class _SplashScreenState extends State<SplashScreen>
               ),
             ),
           ),
-          Container(
-            color: const Color(0xFF020D2A).withOpacity(0.72),
-          ),
+          Container(color: const Color(0xFF020D2A).withOpacity(0.72)),
           Center(
             child: FadeTransition(
               opacity: _fadeAnim,
@@ -70,10 +97,7 @@ class _SplashScreenState extends State<SplashScreen>
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Image.asset(
-                      'assets/icons/logo.png',
-                      height: 150,
-                    ),
+                    Image.asset('assets/icons/logo.png', height: 150),
                     const SizedBox(height: 20),
                     const Text(
                       'AquaSense',
