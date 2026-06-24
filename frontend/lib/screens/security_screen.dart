@@ -384,12 +384,12 @@ class _SecurityScreenState extends State<SecurityScreen> {
                                   setDialogState(() => _isDisabling = true);
 
                                   final result = await AuthService.disable2FA(
-                                    _passwordController.text,
+                                    password: _passwordController.text,
                                   );
 
                                   setDialogState(() => _isDisabling = false);
 
-                                  if (result['success']) {
+                                  if (result['success'] == true) {
                                     setState(() => _twoFactor = false);
                                     Navigator.pop(ctx);
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -398,6 +398,10 @@ class _SecurityScreenState extends State<SecurityScreen> {
                                         backgroundColor: Color(0xFF0A1B6F),
                                       ),
                                     );
+                                  } else if (result['otp_required'] == true) {
+                                    // Google-only account — password field doesn't apply, show OTP dialog
+                                    Navigator.pop(ctx);
+                                    _showDisableOtpDialog();
                                   } else {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
@@ -444,6 +448,176 @@ class _SecurityScreenState extends State<SecurityScreen> {
       ),
     );
   }
+
+  // ── OTP dialog for disabling 2FA (Google-only accounts) ──
+void _showDisableOtpDialog() {
+  final List<TextEditingController> otpControllers =
+      List.generate(6, (_) => TextEditingController());
+  final List<FocusNode> focusNodes =
+      List.generate(6, (_) => FocusNode());
+
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setDialogState) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          contentPadding: EdgeInsets.zero,
+          backgroundColor: Colors.white,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+
+              // ── Header ────────────────────────────────────
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF0A1B6F),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                child: const Column(
+                  children: [
+                    Icon(Icons.lock_open_outlined, color: Colors.white, size: 30),
+                    SizedBox(height: 8),
+                    Text(
+                      'Disable 2FA',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── Body ──────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+
+                    const Text(
+                      'A verification code has been sent to your email. Enter it below to disable 2FA.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13, color: Colors.black87),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: List.generate(6, (i) {
+                        return SizedBox(
+                          width: 40,
+                          child: TextField(
+                            controller: otpControllers[i],
+                            focusNode: focusNodes[i],
+                            keyboardType: TextInputType.number,
+                            textAlign: TextAlign.center,
+                            maxLength: 1,
+                            decoration: const InputDecoration(counterText: ''),
+                            onChanged: (val) {
+                              if (val.isNotEmpty && i < 5) {
+                                FocusScope.of(ctx).requestFocus(focusNodes[i + 1]);
+                              } else if (val.isEmpty && i > 0) {
+                                FocusScope.of(ctx).requestFocus(focusNodes[i - 1]);
+                              }
+                            },
+                          ),
+                        );
+                      }),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isDisabling
+                            ? null
+                            : () async {
+                                final otp = otpControllers.map((c) => c.text).join();
+
+                                if (otp.length < 6) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Enter the full 6-digit code.'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                setDialogState(() => _isDisabling = true);
+
+                                final result = await AuthService.disable2FA(otp: otp);
+
+                                setDialogState(() => _isDisabling = false);
+
+                                if (result['success'] == true) {
+                                  setState(() => _twoFactor = false);
+                                  Navigator.pop(ctx);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Two-Factor Authentication disabled.'),
+                                      backgroundColor: Color(0xFF0A1B6F),
+                                    ),
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(result['message']),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red[700],
+                          disabledBackgroundColor: Colors.grey[300],
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: _isDisabling
+                            ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2),
+                              )
+                            : const Text(
+                                'Confirm Disable',
+                                style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white),
+                              ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    Center(
+                      child: TextButton(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          setState(() => _twoFactor = true); // revert toggle
+                        },
+                        child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
+
 
   @override
   Widget build(BuildContext context) {

@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "987459520382",
+    "project_id": "aquasense-5c86f",
+    "storage_bucket": "aquasense-5c86f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:987459520382:android:4468b037b3c1f50500d52f",
+        "android_client_info": {
+          "package_name": "com.example.aqua_sense"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "987459520382-8g6t2sfvp4cjoo3u64v1ek8kvd13megi.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.aqua_sense",
+            "certificate_hash": "e8f702c462377af1ac598a78ceb512239f7709c4"
+          }
+        },
+        {
+          "client_id": "987459520382-6sqt8najkbjb3ml06nhllei4bmpk67nr.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyChr8PrIOP_i6aPPCm2AlyuDPdS-dyPkTU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "987459520382-6sqt8najkbjb3ml06nhllei4bmpk67nr.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
