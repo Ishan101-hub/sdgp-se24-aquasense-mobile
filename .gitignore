@@ -20,6 +20,11 @@ frontend/windows/flutter/generated_plugins.cmake
 frontend/.pub-cache/
 frontend/.pub/
 
+# Generated plugin registrant files
+**/GeneratedPluginRegistrant.*
+**/generated_plugin_registrant.cc
+**/generated_plugins.cmake
+
 # Flutter coverage
 frontend/coverage/
 
