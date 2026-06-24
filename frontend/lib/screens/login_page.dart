@@ -1,3 +1,4 @@
+import 'package:aqua_sense/services/utils/app_constants.dart';
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import '../services/auth_service.dart';
@@ -85,11 +86,11 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   // ── Google Sign-In ────────────────────────────────────────
-final _googleSignIn = GoogleSignIn(
-  serverClientId: '987459520382-6sqt8najkbjb3ml06nhllei4bmpk67nr.apps.googleusercontent.com',
-);
+  final _googleSignIn = GoogleSignIn(
+    clientId: AppConstants.googleServerClientId,
+  );
 
-Future<void> _onGoogleSignIn() async {
+  Future<void> _onGoogleSignIn() async {
   try {
     final googleUser = await _googleSignIn.signIn();
     if (googleUser == null) return; // user cancelled

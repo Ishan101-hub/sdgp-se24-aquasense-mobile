@@ -11,6 +11,11 @@ class AppConstants {
     'API_BASE_URL',
     defaultValue: 'http://192.168.1.3:8000',
   );
+  static const String googleServerClientId =
+      String.fromEnvironment(
+        'GOOGLE_SERVER_CLIENT_ID',
+        defaultValue: '',
+      );
 
   // ─────────────────────────────────────────────
   // AUTH ENDPOINTS
