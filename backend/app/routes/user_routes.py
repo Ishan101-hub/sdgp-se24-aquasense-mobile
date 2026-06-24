@@ -71,6 +71,23 @@ async def get_profile(
         "household_size":  current_user.household_size,
     }
 
+# ─────────────────────────────────────────────
+# FCM TOKEN - PUSH NOTIFICATION
+# ───
+
+@router.post("/fcm-token")
+async def update_fcm_token(
+    data: dict,
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    token = data.get("fcm_token")
+    if not token:
+        raise HTTPException(status_code=400, detail="fcm_token is required")
+    current_user.fcm_token = token
+    await db.commit()
+    return {"message": "FCM token updated"}
+
 
 # ─────────────────────────────────────────────
 # UPDATE PROFILE
