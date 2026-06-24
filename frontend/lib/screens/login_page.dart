@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import '../services/auth_service.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class LoginPage extends StatefulWidget {
   LoginPage({super.key});
@@ -82,6 +83,57 @@ class _LoginPageState extends State<LoginPage> {
       );
     }
   }
+
+  // ── Google Sign-In ────────────────────────────────────────
+final _googleSignIn = GoogleSignIn(
+  serverClientId: '987459520382-6sqt8najkbjb3ml06nhllei4bmpk67nr.apps.googleusercontent.com',
+);
+
+Future<void> _onGoogleSignIn() async {
+  try {
+    final googleUser = await _googleSignIn.signIn();
+    if (googleUser == null) return; // user cancelled
+
+    final googleAuth = await googleUser.authentication;
+    final idToken = googleAuth.idToken;
+
+    if (idToken == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Google sign-in failed. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoggingIn = true);
+
+    final result = await AuthService.googleLogin(idToken);
+
+    setState(() => _isLoggingIn = false);
+
+    if (result['success']) {
+      if (result['two_factor_required'] == true) {
+        _show2FAOtpDialog();
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message']), backgroundColor: Colors.red),
+      );
+    }
+  } catch (e) {
+    setState(() => _isLoggingIn = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Google sign-in error: $e'), backgroundColor: Colors.red),
+    );
+  }
+}
 
   // ── 2FA OTP dialog shown after login ─────────────────────
   void _show2FAOtpDialog() {
@@ -813,7 +865,7 @@ class _LoginPageState extends State<LoginPage> {
                           const SizedBox(height: 12),
                           Center(
                             child: InkWell(
-                              onTap: () {},
+                              onTap: _isLoggingIn ? null : _onGoogleSignIn,
                               borderRadius: BorderRadius.circular(50),
                               child: Container(
                                 padding: const EdgeInsets.all(10),

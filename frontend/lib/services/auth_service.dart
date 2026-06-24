@@ -216,6 +216,36 @@ class AuthService {
     }
   }
 
+  // ── Google Login ───────────────────────────────────────────
+static Future<Map<String, dynamic>> googleLogin(String idToken) async {
+  try {
+    final response = await http.post(
+      Uri.parse('$baseUrl/google-login'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'id_token': idToken}),
+    ).timeout(const Duration(seconds: 15));
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      await saveTokens(data['access_token'], data['refresh_token']);
+      await AuthStorage.saveToken(data['access_token']);
+      return {
+        'success': true,
+        'two_factor_required': data['two_factor_required'] ?? false,
+        'message': data['message'] ?? '',
+      };
+    }
+
+    return {'success': false, 'message': data['detail'] ?? 'Google login failed'};
+  } catch (e) {
+    return {
+      'success': false,
+      'message': 'Network error. Please check your connection.\n\nDetail: $e',
+    };
+  }
+}
+
   // ── Logout ─────────────────────────────────────────────
   static Future<void> logout() async {
     try {
@@ -523,35 +553,52 @@ class AuthService {
     }
   }
 
-  // ── Disable 2FA — requires password ───────────────────
-  static Future<Map<String, dynamic>> disable2FA(String password) async {
-    try {
-      final token = await getAccessToken();
-      final response = await http
-          .post(
-            Uri.parse('$_host/security/2fa/disable'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $token',
-            },
-            body: jsonEncode({'password': password}),
-          )
-          .timeout(const Duration(seconds: 10));
+  // ── Disable 2FA — password accounts or Google-only (OTP) ──────────────
+static Future<Map<String, dynamic>> disable2FA({
+  String? password,
+  String? otp,
+}) async {
+  try {
+    final token = await getAccessToken();
 
-      final data = jsonDecode(response.body);
+    final body = <String, dynamic>{};
+    if (password != null) body['password'] = password;
+    if (otp != null) body['otp'] = otp;
 
-      if (response.statusCode == 200) {
-        return {'success': true, 'message': data['message']};
-      }
+    final response = await http
+        .post(
+          Uri.parse('$_host/security/2fa/disable'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 10));
 
+    final data = jsonDecode(response.body);
+
+    // 202 = Google account, OTP has been sent — prompt user to enter it
+    if (response.statusCode == 202) {
       return {
         'success': false,
-        'message': data['detail'] ?? 'Failed to disable 2FA',
+        'otp_required': true,
+        'message': data['detail'],
       };
-    } catch (e) {
-      return {'success': false, 'message': 'Error: $e'};
     }
+
+    if (response.statusCode == 200) {
+      return {'success': true, 'message': data['message']};
+    }
+
+    return {
+      'success': false,
+      'message': data['detail'] ?? 'Failed to disable 2FA',
+    };
+  } catch (e) {
+    return {'success': false, 'message': 'Error: $e'};
   }
+}
 
   // ── Set Auto Lock ──────────────────────────────────────
   static Future<Map<String, dynamic>> setAutoLock(int minutes) async {

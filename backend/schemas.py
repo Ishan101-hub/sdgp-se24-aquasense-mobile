@@ -292,17 +292,31 @@ class UpdateProfileSchema(BaseModel):
 # ─────────────────────────────────────────────
 
 class Toggle2FASchema(BaseModel):
-    # Password required to disable 2FA
-    # Confirms it is the real user making the change
-    password: str
+    # Password accounts: supply password to disable 2FA
+    # Google-only accounts: supply otp received by email instead
+    # Both are optional at schema level — route enforces which is required
+    password: Optional[str] = None
+    otp:      Optional[str] = None
 
     @field_validator("password")
     @classmethod
     def validate_password(cls, v):
-        if len(v.strip()) == 0:
-            raise ValueError("Password is required")
-        if len(v) > 64:
-            raise ValueError("Invalid password")
+        if v is not None:
+            if len(v.strip()) == 0:
+                raise ValueError("Password cannot be blank")
+            if len(v) > 64:
+                raise ValueError("Invalid password")
+        return v
+
+    @field_validator("otp")
+    @classmethod
+    def validate_otp(cls, v):
+        if v is not None:
+            v = v.strip()
+            if not v.isdigit():
+                raise ValueError("OTP must contain only digits")
+            if len(v) != 6:
+                raise ValueError("OTP must be exactly 6 digits")
         return v
 
 

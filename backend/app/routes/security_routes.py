@@ -95,17 +95,59 @@ async def verify_enable_2fa(
 
 @router.post("/2fa/disable")
 async def disable_2fa(
-    data:        Toggle2FASchema,
-    current_user = Depends(get_current_user),
-    db:          AsyncSession = Depends(get_db),
+    data:             Toggle2FASchema,
+    background_tasks: BackgroundTasks,
+    current_user      = Depends(get_current_user),
+    db:               AsyncSession = Depends(get_db),
 ):
     if not current_user.two_fa_enabled:
         raise HTTPException(status_code=400,
                             detail="Two factor authentication is not enabled")
-    if current_user.password_hash and not verify_password(data.password, current_user.password_hash):
-        raise HTTPException(status_code=400, detail="Incorrect password")
 
-    current_user.two_fa_enabled = False
+    # ── Google-only account (no password) → OTP flow ──────────────────
+    if current_user.password_hash is None:
+        if data.otp is None:
+            # Step 1: no OTP yet → send one and ask for it
+            otp = generate_otp()
+            current_user.otp             = otp
+            current_user.otp_expires_at  = (
+                datetime.now(timezone.utc) + timedelta(minutes=OTP_EXPIRE_MINUTES)
+            )
+            current_user.otp_type        = "2fa_disable"
+            await db.commit()
+
+            background_tasks.add_task(
+                send_email, current_user.email, otp, "2fa_disable"
+            )
+            raise HTTPException(
+                status_code=202,
+                detail="OTP sent to your email. Submit it to confirm disabling 2FA.",
+            )
+
+        # Step 2: OTP submitted → verify it
+        if current_user.otp_type != "2fa_disable":
+            raise HTTPException(status_code=400,
+                                detail="No pending 2FA disable request. Please restart.")
+        if current_user.otp != data.otp:
+            raise HTTPException(status_code=400, detail="Invalid OTP")
+        if (current_user.otp_expires_at and
+                datetime.now(timezone.utc) > current_user.otp_expires_at):
+            raise HTTPException(status_code=400,
+                                detail="OTP has expired. Please try again.")
+
+    # ── Password account → verify password ────────────────────────────
+    else:
+        if not data.password:
+            raise HTTPException(status_code=400,
+                                detail="Password is required to disable 2FA.")
+        if not verify_password(data.password, current_user.password_hash):
+            raise HTTPException(status_code=400, detail="Incorrect password")
+
+    # ── Both paths cleared — disable 2FA ──────────────────────────────
+    current_user.two_fa_enabled  = False
+    current_user.otp             = None
+    current_user.otp_expires_at  = None
+    current_user.otp_type        = None
     await db.commit()
 
     return {"message": "Two factor authentication disabled successfully"}
