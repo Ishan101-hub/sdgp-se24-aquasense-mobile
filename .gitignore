@@ -10,6 +10,12 @@ frontend/.packages
 frontend/.metadata
 frontend/build/
 
+# Ignore Flutter generated files
+frontend/macos/Flutter/GeneratedPluginRegistrant.swift
+frontend/windows/flutter/generated_plugin_registrant.cc
+frontend/windows/flutter/generated_plugins.cmake
+
+
 # Flutter cache
 frontend/.pub-cache/
 frontend/.pub/
