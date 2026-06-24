@@ -34,6 +34,8 @@ from mobile_router    import router as mobile_router, set_mobile_publish_queue
 from usage_router     import router as usage_router
 from reports_router import router as reports_router
 
+from firebase_service import init_firebase, send_leak_push
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
@@ -49,6 +51,8 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables verified ✓")
+
+    init_firebase()
 
     # Shared publish queue — all valve command sources write here
     publish_queue: asyncio.Queue = asyncio.Queue()
@@ -66,8 +70,6 @@ async def lifespan(app: FastAPI):
         from sqlalchemy import select
         try:
             async with AsyncSessionLocal() as db:
-                # Use the INLET device for FK columns — it owns the valve and
-                # is the source of leak detection. The outlet device has no valve.
                 dev_result = await db.execute(
                     select(Device).where(
                         Device.zone_id     == zone_id,
@@ -92,19 +94,14 @@ async def lifespan(app: FastAPI):
             logger.error("Failed to save event zone=%d: %s", zone_id, exc)
 
     async def _on_valve_command(zone_id: int, action: str) -> None:
-        """
-        Send valve command to the inlet ESP32 — backup action after leak confirmed.
-        The valve relay is physically on the inlet device. Publishing to the
-        outlet device's topic would be silently ignored by the inlet ESP32.
-        """
+        """Send valve command to the inlet ESP32 — backup action after leak confirmed."""
         from database import AsyncSessionLocal
         from models import Device, Zone, Network, ValveLog
         from sqlalchemy import select, update
         try:
             async with AsyncSessionLocal() as db:
-                # Get zone + network slugs for MQTT topic construction
                 zone_result = await db.execute(
-                    select(Zone.zone_id, Network.network_id)
+                    select(Zone.zone_name, Network.network_id)
                     .join(Network, Zone.network_id == Network.id)
                     .where(Zone.id == zone_id)
                 )
@@ -112,9 +109,9 @@ async def lifespan(app: FastAPI):
                 if not zone_net:
                     logger.warning("_on_valve_command: zone_id=%d not found", zone_id)
                     return
-                zone_slug, network_slug = zone_net.zone_id, zone_net.network_id
+                # Handle zone key logic
+                zone_slug, network_slug = zone_id, zone_net.network_id
 
-                # Query INLET devices — the valve relay is on the inlet ESP32
                 dev_result = await db.execute(
                     select(Device).where(
                         Device.zone_id     == zone_id,
@@ -135,7 +132,6 @@ async def lifespan(app: FastAPI):
                         action       = action,
                         source       = "auto_leak",
                     ))
-                    # MQTT topic → aquasense/{network}/{zone}/{inlet_device_id}/valve/command
                     await publish_queue.put((network_slug, zone_slug, device.device_id, action))
                     logger.warning(
                         "BACKUP VALVE CMD zone=%d device=%s action=%s",
@@ -145,12 +141,37 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             logger.error("Failed to send valve command zone=%d: %s", zone_id, exc)
 
-    async def _on_leak_detected(zone_id: int, inlet_flow: float, outlet_flow: float) -> None:
-        """Hook for push notifications / future alerting integrations."""
+    async def _on_leak_detected(zone_id: str, inlet_flow: float, outlet_flow: float) -> None:
+        """Fixed Alignment: Properly triggers the live push architecture."""
         logger.warning(
-            "LEAK ALERT zone=%d inlet=%.2f outlet=%.2f",
+            "LEAK ALERT zone=%s inlet=%.2f outlet=%.2f",
             zone_id, inlet_flow, outlet_flow,
         )
+
+        from database import AsyncSessionLocal
+        from models import Zone, Network, User
+        from sqlalchemy import select
+
+        try:
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(
+                    select(Zone.zone_name, User.fcm_token)
+                    .join(Network, Zone.network_id == Network.id)
+                    .join(User, Network.owner_id == User.id)
+                    .where(Zone.zone_id == zone_id) 
+                )
+                
+                row = result.one_or_none()
+                if row:
+                    zone_name, fcm_token = row 
+                    if fcm_token:
+                        await send_leak_push(fcm_token, zone_name, zone_id)
+                    else:
+                        logger.warning("No FCM token found for zone=%s owner", zone_id)
+                else:
+                    logger.warning("Zone %s not found in database", zone_id)
+        except Exception as exc:
+            logger.error("Exception during leak notification dispatch for zone %s: %s", zone_id, exc)
 
     # ── Instantiate and register the leak detection service ──────────────────
     leak_svc = LeakDetectionService(
@@ -195,12 +216,10 @@ _production_origins = [
     for o in os.getenv("CORS_ALLOWED_ORIGINS", "https://aquasense-sdgp.web.app").split(",")
     if o.strip()
 ]
-# http://192.168.1.3:8000 >> https://sdgp-se24-aquasense-mobile.onrender.com
 _dev_origins = [
     "http://localhost",
     "http://localhost:3000",
     "http://127.0.0.1:8000",
-    "http://192.168.1.3:8000",
     "http://192.168.1.3:8000",
     "http://192.168.8.183",
 ]
@@ -227,7 +246,6 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 # ── Routers ───────────────────────────────────────────────────
-# Auth system (Kulith)
 app.include_router(auth_router)
 app.include_router(user_router)
 app.include_router(google_auth_router)
@@ -235,7 +253,6 @@ app.include_router(security_router)
 app.include_router(terms_router)
 app.include_router(district_router)
 
-# IoT system
 app.include_router(device_router)
 app.include_router(analytics_router)
 app.include_router(mobile_router)
