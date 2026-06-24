@@ -110,6 +110,9 @@ class User(Base):
     # Google OAuth
     google_id = Column(String(200), unique=True, nullable=True)
 
+    #FCM tokens
+    fcm_token = Column(String, nullable=True)
+
     # Device info (from user_routes register-device)
     device_id    = Column(String(100), nullable=True)
     install_date = Column(DateTime(timezone=True), nullable=True)

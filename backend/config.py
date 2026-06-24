@@ -75,6 +75,9 @@ class Settings(BaseSettings):
     ENVIRONMENT:          str = "production"
     CORS_ALLOWED_ORIGINS: str = "https://aquasense-sdgp.web.app"
 
+    # base64 output
+    FIREBASE_CREDENTIALS_JSON: str = ""
+
     class Config:
         env_file = ".env"
 
