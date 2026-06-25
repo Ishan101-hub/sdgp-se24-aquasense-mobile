@@ -158,7 +158,7 @@ async def lifespan(app: FastAPI):
                     select(Zone.zone_name, User.fcm_token)
                     .join(Network, Zone.network_id == Network.id)
                     .join(User, Network.owner_id == User.id)
-                    .where(Zone.zone_id == zone_id) 
+                    .where(Zone.id == zone_id) 
                 )
                 
                 row = result.one_or_none()
