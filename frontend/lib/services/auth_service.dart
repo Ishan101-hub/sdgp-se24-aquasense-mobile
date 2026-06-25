@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'auth_storage.dart';
 import '../services/utils/app_constants.dart';
+import 'dart:convert';
 
 
 class AuthService {
@@ -736,5 +738,37 @@ static Future<Map<String, dynamic>> disable2FA({
       },
       body: jsonEncode(body),
     );
+  }
+
+  // ── Update FCM token ───────────────────────────────────────
+  static Future<void> updateFcmToken(String token) async {
+    try {
+      final accessToken = await getAccessToken();
+      if (accessToken == null) {
+        debugPrint('FCM sync skipped: No access token found.');
+        return;
+      }
+
+      final url = Uri.parse('$_host/user/fcm-token');
+      debugPrint('Syncing FCM token to server: $url');
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+        body: jsonEncode({'fcm_token': token}),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        debugPrint('FCM Token successfully synced to database ✓');
+      } else {
+        debugPrint('FCM sync server rejection. Status: ${response.statusCode}, Body: ${response.body}');
+      }
+    } catch (e) {
+      // Non-critical background task — fail silently to avoid crashing user flow
+      debugPrint('FCM token database update failed: $e');
+    }
   }
 }

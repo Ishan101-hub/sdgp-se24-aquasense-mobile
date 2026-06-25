@@ -6,9 +6,12 @@
 #define SENSOR      27
 #define LED_BUILTIN  2
 
+//Dialog 4G 780
+//40De7e62
+
 // -------------------- Wi-Fi Configuration --------------------
-#define WIFI_SSID     "Dialog 4G 780"
-#define WIFI_PASSWORD "40De7e62"
+#define WIFI_SSID     "Home wifi"
+#define WIFI_PASSWORD "Eshani123"
 
 // -------------------- MQTT / HiveMQ Configuration --------------------
 const char* mqtt_server   = "66791e6741b44aecb122ab7b59807177.s1.eu.hivemq.cloud";
