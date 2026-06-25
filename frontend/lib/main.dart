@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart'; 
 import 'package:firebase_messaging/firebase_messaging.dart'; 
 
+import 'firebase_options.dart'; // Handles platform profiles dynamically
 import 'screens/home_screen.dart';
 import 'screens/login_page.dart';
 import 'screens/registration_page.dart';
@@ -12,9 +13,11 @@ import 'theme_provider.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase securely
+  // Initialize Firebase securely with multi-platform cross-options
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform, // ← Added cross-platform options
+    );
     
     // Request notification permissions for iOS and Android 13+
     FirebaseMessaging messaging = FirebaseMessaging.instance;
@@ -47,8 +50,10 @@ Future<void> main() async {
 // Top-level function required for handling notifications when app is in background/terminated
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
-  // Handle your background notification data here if needed
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform, // ← Added cross-platform options here too
+  );
+  // Handle background notification payload data here if needed
 }
 
 class MyApp extends StatelessWidget {

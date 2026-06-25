@@ -1,16 +1,1 @@
-{
-  "hosting": {
-    "public": "build/web",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ]
-  }
-}
+{"hosting":{"public":"build/web","ignore":["firebase.json","**/.*","**/node_modules/**"],"rewrites":[{"source":"**","destination":"/index.html"}]},"flutter":{"platforms":{"android":{"default":{"projectId":"aquasense-5c86f","appId":"1:987459520382:android:4468b037b3c1f50500d52f","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"aquasense-5c86f","configurations":{"android":"1:987459520382:android:4468b037b3c1f50500d52f","ios":"1:987459520382:ios:c6e1925d9b00060d00d52f","web":"1:987459520382:web:e84c0c94b6ec1ff100d52f"}}}}}}

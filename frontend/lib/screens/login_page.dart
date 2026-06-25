@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import '../services/auth_service.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import '../services/notification_service.dart'; // Adjust path if needed to point to your services folder
 
 class LoginPage extends StatefulWidget {
   LoginPage({super.key});
@@ -73,6 +74,8 @@ class _LoginPageState extends State<LoginPage> {
       if (result['two_factor_required'] == true) {
         _show2FAOtpDialog();
       } else {
+        // Fire up notifications to register this user's hardware device token
+        await NotificationService().init();
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const HomeScreen()),
@@ -118,6 +121,7 @@ class _LoginPageState extends State<LoginPage> {
       if (result['two_factor_required'] == true) {
         _show2FAOtpDialog();
       } else {
+        await NotificationService().init();
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const HomeScreen()),
@@ -263,6 +267,7 @@ class _LoginPageState extends State<LoginPage> {
                                   setDialogState(() => _isVerifying2FA = false);
 
                                   if (result['success']) {
+                                    await NotificationService().init();
                                     Navigator.pop(ctx);
                                     Navigator.pushReplacement(
                                       context,
