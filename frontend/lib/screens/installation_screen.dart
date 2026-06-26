@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 
 class InstallationScreen extends StatefulWidget {
   const InstallationScreen({super.key});
@@ -15,6 +16,9 @@ class _InstallationScreenState extends State<InstallationScreen> {
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _zoneController = TextEditingController();
   DateTime? selectedDate;
+
+  final _api    = ApiService();
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -159,21 +163,50 @@ class _InstallationScreenState extends State<InstallationScreen> {
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
-                  onPressed: () {
-                    if (_formKey.currentState!.validate() &&
-                        selectedDate != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Installation request sent!"),
-                        ),
-                      );
-                      Navigator.pop(context);
-                    } else if (selectedDate == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Please pick a date")),
-                      );
-                    }
-                  },
+                  onPressed: _isLoading
+                      ? null
+                      : () async {
+                          if (selectedDate == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Please pick a preferred date.'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
+
+                          if (!(_formKey.currentState?.validate() ?? false)) return;
+
+                          setState(() => _isLoading = true);
+
+                          try {
+                            await _api.requestInstallation(
+                              address:       _addressController.text.trim(),
+                              numZones:      int.parse(_zoneController.text.trim()),
+                              preferredDate: selectedDate!,
+                            );
+
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content:         Text('Installation request submitted!'),
+                                backgroundColor: Color(0xFF0A1B6F),
+                              ),
+                            );
+                            Navigator.pop(context);
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content:         Text(e.toString().replaceFirst('Exception: ', '')),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          } finally {
+                            if (mounted) setState(() => _isLoading = false);
+                          }
+                        },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: brandBlue,
                     foregroundColor: Colors.white,
@@ -181,10 +214,16 @@ class _InstallationScreenState extends State<InstallationScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    "REQUEST INSTALLATION",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text(
+                          "REQUEST INSTALLATION",
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
                 ),
               ),
             ],
