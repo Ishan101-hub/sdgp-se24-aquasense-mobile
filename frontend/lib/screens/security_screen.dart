@@ -12,13 +12,14 @@ class _SecurityScreenState extends State<SecurityScreen> {
   bool _twoFactor      = false;
   bool _loginAlerts    = false;
   bool _dataEncryption = true;
-  bool _autoLock       = false;
+  int _autoLockMinutes = 1;
   bool _isLoading      = true;
   bool _isVerifyingOtp = false;
   bool _isDisabling    = false;
   bool _obscurePassword = true;
 
   final _passwordController = TextEditingController();
+  final List<int> _autoLockOptions = [1, 5, 10, 15, 30, 60];
 
   @override
   void initState() {
@@ -45,7 +46,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
         _twoFactor   = result['two_factor_enabled']   ?? false;
         _loginAlerts = result['login_alerts_enabled'] ?? false;
         // treat auto_lock_minutes > 1 as "on" (1 is our "off" sentinel)
-        _autoLock    = (result['auto_lock_minutes'] ?? 1) > 1;
+        _autoLockMinutes = result['auto_lock_minutes'] ?? 1;
       });
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -72,30 +73,78 @@ class _SecurityScreenState extends State<SecurityScreen> {
     }
   }
 
-  // ── Handle auto lock toggle ──────────────────────────────
-  Future<void> _onAutoLockToggle(bool val) async {
-    setState(() => _autoLock = val);
-
-    // Send 30 minutes when on, 1 minute when off (0 is not allowed by backend)
-    // Flutter treats auto_lock_minutes == 1 as "off" since it's the minimum
-    final minutes = val ? 30 : 1;
-
-    final result = await AuthService.setAutoLock(minutes);
-
-    if (!result['success']) {
-      setState(() => _autoLock = !val); // revert on failure
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result['message']), backgroundColor: Colors.red),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(val ? 'Auto lock set to 30 minutes.' : 'Auto lock disabled.'),
-          backgroundColor: const Color(0xFF0A1B6F),
+  // ── Auto lock picker ─────────────────────────────────────
+void _showAutoLockPicker() {
+  showModalBottomSheet(
+    context: context,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (ctx) => Column(
+      mainAxisSize: MainAxisSize.min, // Keep this so it shrinks on tall screens
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            'Auto-Lock After',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
         ),
-      );
-    }
-  }
+        // Flexible allows the list to take only what it needs, but scroll if it hits the max height limit
+        Flexible(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: _autoLockOptions.map((minutes) => ListTile(
+                leading: const Icon(Icons.timer_outlined, color: Color(0xFF0A1B6F)),
+                title: Text(
+                  minutes == 1 ? 'Off' : '$minutes minutes',
+                  style: const TextStyle(fontSize: 14),
+                ),
+                trailing: _autoLockMinutes == minutes
+                    ? const Icon(Icons.check, color: Color(0xFF0A1B6F))
+                    : null,
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final old = _autoLockMinutes;
+                  setState(() => _autoLockMinutes = minutes);
+
+                  final result = await AuthService.setAutoLock(minutes);
+
+                  if (!result['success']) {
+                    setState(() => _autoLockMinutes = old);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(result['message']),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  } else {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            minutes == 1
+                                ? 'Auto lock disabled.'
+                                : 'Auto lock set to $minutes minutes.',
+                          ),
+                          backgroundColor: const Color(0xFF0A1B6F),
+                        ),
+                      );
+                    }
+                  }
+                },
+              )).toList(), // Remember to convert map to a list
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+      ],
+    ),
+  );
+}
 
   // ── Handle login alerts toggle ───────────────────────────
   Future<void> _onLoginAlertsToggle(bool val) async {
@@ -700,48 +749,20 @@ void _showDisableOtpDialog() {
                         _buildDivider(),
 
                         // ── Auto lock ──────────────────────
-                        _buildToggleTile(
+                        _buildTapTile(
                           icon: Icons.timer_outlined,
                           title: 'Auto Lock',
-                          subtitle: 'Lock app after 30 minutes of inactivity',
-                          value: _autoLock,
-                          onChanged: _onAutoLockToggle,
+                          subtitle: _autoLockMinutes == 1
+                              ? 'Disabled'
+                              : 'Lock after $_autoLockMinutes minutes',
+                          onTap: _showAutoLockPicker,
                           isLast: true,
                         ),
                       ],
                     ),
                   ),
 
-                  const SizedBox(height: 28),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Security settings saved!'),
-                            backgroundColor: Color(0xFF0A1B6F),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0A1B6F),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: const Text(
-                        'Save Settings',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
+                  
                 ],
               ),
             ),
@@ -800,6 +821,58 @@ void _showDisableOtpDialog() {
       ),
     );
   }
+
+  Widget _buildTapTile({
+  required IconData icon,
+  required String title,
+  required String subtitle,
+  required VoidCallback onTap,
+  bool isLast = false,
+}) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+
+  return InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(18),
+    child: Padding(
+      padding: EdgeInsets.only(left: 16, right: 8, top: 4, bottom: isLast ? 4 : 0),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: const Color(0xFF0A1B6F).withOpacity(0.08),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: const Color(0xFF0A1B6F), size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: isDark ? Colors.white : Colors.black,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+        ],
+      ),
+    ),
+  );
+}
 
   Widget _buildDivider() => const Divider(
         color: Colors.grey,
