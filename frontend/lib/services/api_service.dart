@@ -12,6 +12,7 @@ import '../models/app_notification.dart';
 import '../models/mobile_models.dart';
 import '../services/auth_storage.dart';
 import '../services/utils/app_constants.dart';
+import '../services/auth_service.dart';
 
 class ApiService {
   // ── Server URL ────────────────────────────────────────────────────────────
@@ -340,5 +341,35 @@ class ApiService {
       return file;
     }
     throw Exception('Failed to download report: ${response.statusCode}');
+  }
+
+  // ── Request Installation ───────────────────────────────────
+  Future<void> requestInstallation({
+    required String address,
+    required int numZones,
+    required DateTime preferredDate,
+  }) async {
+    final token = await AuthService.getAccessToken();
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/installation'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({
+            'address': address,
+            'num_zones': numZones,
+            'preferred_date': preferredDate.toIso8601String().split('T')[0],
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode != 200) {
+      final data = jsonDecode(response.body);
+      throw Exception(
+        data['detail'] ?? 'Failed to submit installation request.',
+      );
+    }
   }
 }

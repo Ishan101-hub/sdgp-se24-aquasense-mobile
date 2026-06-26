@@ -18,6 +18,7 @@ from models import Base
 from mqtt_service import start_mqtt_listener, periodic_flush, set_leak_service as mqtt_set_leak_service
 from aggregation import schedule_aggregation
 from leak_service import LeakDetectionService, set_leak_service, EventType
+from installation_router import router as installation_router
 
 # ── Auth routers (Kulith) ─────────────────────────────────────
 from app.routes.auth_routes        import router as auth_router
@@ -258,6 +259,7 @@ app.include_router(analytics_router)
 app.include_router(mobile_router)
 app.include_router(usage_router)
 app.include_router(reports_router)
+app.include_router(installation_router)
 
 
 @app.get("/health", tags=["system"])
