@@ -372,4 +372,39 @@ class ApiService {
       );
     }
   }
+
+  // ── Report Issue ───────────────────────────────────────────
+Future<void> reportIssue({
+  required String category,
+  required String description,
+}) async {
+  final token = await AuthService.getAccessToken();
+  final response = await http.post(
+    Uri.parse('$baseUrl/installation/report-issue'),
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': 'Bearer $token',
+    },
+    body: jsonEncode({
+      'category':    category,
+      'description': description,
+    }),
+  ).timeout(const Duration(seconds: 10));
+
+  if (response.statusCode != 200) {
+  final data = jsonDecode(response.body);
+  
+  // If it's a 422 Pydantic validation error, extract the human-readable msg
+  if (response.statusCode == 422 && data['detail'] is List) {
+    try {
+      final firstError = data['detail'][0];
+      throw Exception(firstError['msg'] ?? 'Validation failed.');
+    } catch (_) {
+      throw Exception('Invalid input data provided.');
+    }
+  }
+  
+  throw Exception(data['detail'] ?? 'Failed to submit report.');
+}
+}
 }

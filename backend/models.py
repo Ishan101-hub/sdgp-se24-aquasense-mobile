@@ -369,3 +369,20 @@ class InstallationRequest(Base):
     created_at     = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User")
+
+
+# ─────────────────────────────────────────────────────────────
+#  ISSUE REPORT
+# ─────────────────────────────────────────────────────────────
+
+class IssueReport(Base):
+    __tablename__ = "issue_reports"
+
+    id          = Column(Integer, primary_key=True)
+    user_id     = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    category    = Column(String(100), nullable=False)
+    description = Column(Text, nullable=False)
+    status      = Column(String(20), default="open", nullable=False)  # open / in_progress / resolved
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User")

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 
 class ReportIssueScreen extends StatefulWidget {
   const ReportIssueScreen({super.key});
@@ -11,6 +12,8 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
   final _formKey = GlobalKey<FormState>();
   String? selectedIssueType;
   final TextEditingController _descriptionController = TextEditingController();
+  final _api      = ApiService();
+  bool _isLoading = false;
 
   final Color brandBlue = const Color(0xFF0A1B6F);
 
@@ -22,6 +25,12 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
     'Physical Damage',
     'Other',
   ];
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -98,9 +107,18 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
                 maxLines: 5,
                 style: textTheme.bodyMedium,
                 decoration: _inputDecoration("Provide more details...", isDark),
-                validator: (value) => value == null || value.isEmpty
-                    ? 'Please enter a description'
-                    : null,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter a description';
+                  }
+                  if (value.trim().length < 10) {
+                    return 'Description must be at least 10 characters';
+                  }
+                  if (value.trim().length > 2000) {
+                    return 'Description must not exceed 2000 characters';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 40),
 
@@ -109,16 +127,39 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Issue reported successfully!"),
-                        ),
-                      );
-                      Navigator.pop(context);
-                    }
-                  },
+                  onPressed: _isLoading
+                      ? null
+                      : () async {
+                          if (!(_formKey.currentState?.validate() ?? false)) return;
+
+                          setState(() => _isLoading = true);
+
+                          try {
+                            await _api.reportIssue(
+                              category:    selectedIssueType!,
+                              description: _descriptionController.text.trim(),
+                            );
+
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content:         Text('Issue reported successfully!'),
+                                backgroundColor: Color(0xFF0A1B6F),
+                              ),
+                            );
+                            Navigator.pop(context);
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content:         Text(e.toString().replaceFirst('Exception: ', '')),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          } finally {
+                            if (mounted) setState(() => _isLoading = false);
+                          }
+                        },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: brandBlue,
                     foregroundColor: Colors.white,
@@ -126,10 +167,16 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    "SUBMIT REPORT",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text(
+                          "SUBMIT REPORT",
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
                 ),
               ),
             ],
