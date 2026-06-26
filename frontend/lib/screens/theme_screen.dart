@@ -66,28 +66,7 @@ class ThemeScreen extends StatelessWidget {
               selectedTheme: selectedTheme,
             ),
 
-            const SizedBox(height: 28),
-
-            /// SAVE BUTTON
-            SizedBox(
-              width: double.infinity,
-
-              child: ElevatedButton(
-                onPressed: () {
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Theme set to ${selectedTheme[0].toUpperCase()}${selectedTheme.substring(1)}!',
-                      ),
-                    ),
-                  );
-
-                },
-
-                child: const Text('Apply Theme'),
-              ),
-            ),
+            
           ],
         ),
       ),
@@ -109,6 +88,14 @@ class ThemeScreen extends StatelessWidget {
 
       onTap: () {
         context.read<ThemeProvider>().setTheme(value);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Theme set to ${value[0].toUpperCase()}${value.substring(1)}',
+            ),
+            duration: const Duration(seconds: 1),
+          ),
+        );
       },
 
       child: AnimatedContainer(
