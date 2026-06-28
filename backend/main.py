@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from provisioning_router import router as provisioning_router
 
 from database import engine
 from models import Base
@@ -260,6 +261,7 @@ app.include_router(mobile_router)
 app.include_router(usage_router)
 app.include_router(reports_router)
 app.include_router(installation_router)
+app.include_router(provisioning_router)
 
 
 @app.get("/health", tags=["system"])
