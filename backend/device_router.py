@@ -19,7 +19,7 @@
 #     now reads from leak_service.FLOW_MISMATCH_THRESHOLD_LPM instead of
 #     the hardcoded literal 0.1.
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -256,6 +256,30 @@ async def list_devices(
         for d in result.scalars()
     ]
 
+# ─────────────────────────────────────────────────────────────────────────────
+#  ADD DEVICE
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/devices/{device_id}/online")
+async def check_device_online(
+    device_id:    str,
+    db:           AsyncSession = Depends(get_db),
+    current_user: User         = Depends(_iot_dep),
+):
+    result = await db.execute(
+        select(Device)
+        .join(Network, Device.network_id == Network.id)
+        .where(Device.device_id == device_id, Network.owner_id == current_user.id)
+    )
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    online = (
+        device.last_seen is not None and
+        (datetime.now(timezone.utc) - device.last_seen).total_seconds() < 30
+    )
+    return {"device_id": device_id, "online": online}
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  VALVE CONTROL

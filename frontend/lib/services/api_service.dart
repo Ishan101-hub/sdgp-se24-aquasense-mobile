@@ -407,4 +407,119 @@ Future<void> reportIssue({
   throw Exception(data['detail'] ?? 'Failed to submit report.');
 }
 }
+// ── Provisioning: generate device config ───────────────────
+Future<Map<String, dynamic>> generateProvisioningConfig({
+  required String networkId,
+  required String zoneId,
+  required String sensorType,
+  required String chipId,
+}) async {
+  final token = await AuthService.getAccessToken();
+  final response = await http.post(
+    Uri.parse('$baseUrl/provisioning/generate-config'),
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': 'Bearer $token',
+    },
+    body: jsonEncode({
+      'network_id':  networkId,
+      'zone_id':     zoneId,
+      'sensor_type': sensorType,
+      'chip_id':     chipId,
+    }),
+  ).timeout(const Duration(seconds: 10));
+
+  if (response.statusCode == 200) return jsonDecode(response.body);
+  throw Exception(
+    _errorDetail(response, 'Failed to generate device config.'),
+  );
+}
+
+// ── Provisioning: register device in backend ───────────────
+Future<void> registerDevice({
+  required int    networkId,
+  required String zoneId,
+  required String deviceId,
+  required String sensorType,
+}) async {
+  // Find the zone's integer ID from the slug
+  final zones  = await fetchZones(networkId);
+  final zone   = zones.firstWhere(
+    (z) => z['zone_id'] == zoneId,
+    orElse: () => throw Exception('Zone not found: $zoneId'),
+  );
+  final zoneIntId = zone['id'] as int;
+
+  final token = await AuthService.getAccessToken();
+  final response = await http.post(
+    Uri.parse('$baseUrl/networks/$networkId/devices'),
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': 'Bearer $token',
+    },
+    body: jsonEncode({
+      'device_id':   deviceId,
+      'zone_id':     zoneIntId,
+      'sensor_type': sensorType,
+    }),
+  ).timeout(const Duration(seconds: 10));
+
+  if (response.statusCode != 201) {
+    throw Exception(
+      _errorDetail(response, 'Failed to register device.'),
+    );
+  }
+}
+
+// ── Fetch networks list ────────────────────────────────────
+Future<List<Map<String, dynamic>>> fetchNetworks() async {
+  final token = await AuthService.getAccessToken();
+  final response = await http.get(
+    Uri.parse('$baseUrl/networks'),
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': 'Bearer $token',
+    },
+  ).timeout(const Duration(seconds: 10));
+
+  if (response.statusCode == 200) {
+    return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+  }
+  return [];
+}
+
+// ── Fetch zones for a network ──────────────────────────────
+Future<List<Map<String, dynamic>>> fetchZones(int networkId) async {
+  final token = await AuthService.getAccessToken();
+  final response = await http.get(
+    Uri.parse('$baseUrl/networks/$networkId/zones'),
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': 'Bearer $token',
+    },
+  ).timeout(const Duration(seconds: 10));
+
+  if (response.statusCode == 200) {
+    return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+  }
+  return [];
+}
+
+// ── Check if device is online (last_seen within 30s) ──────
+Future<bool> checkDeviceOnline(String deviceId) async {
+  final token = await AuthService.getAccessToken();
+  final response = await http.get(
+    Uri.parse('$baseUrl/devices/$deviceId/online'),
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': 'Bearer $token',
+    },
+  ).timeout(const Duration(seconds: 8));
+
+  if (response.statusCode == 200) {
+    final data = jsonDecode(response.body);
+    return data['online'] == true;
+  }
+  return false;
+}
 }

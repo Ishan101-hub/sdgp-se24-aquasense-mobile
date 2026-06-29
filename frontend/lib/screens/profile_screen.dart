@@ -199,99 +199,104 @@ class _ProfileScreenState extends State<ProfileScreen> {
               bottom: MediaQuery.of(context).viewInsets.bottom,
               left: 20, right: 20, top: 25,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+            // Wrapped in SingleChildScrollView so the sheet scrolls
+            // instead of overflowing once the keyboard eats into the
+            // available height (6 fields + button is a lot of content).
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
 
-                const Text(
-                  "Edit Profile",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-
-                const SizedBox(height: 6),
-
-                const Text(
-                  'You can update your name, phone and location.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-
-                const SizedBox(height: 16),
-
-                _editField(nameCtrl,  "Full Name"),
-                _editField(phoneCtrl, "Phone Number (e.g. +94XXXXXXXXX)"),
-                _editField(locCtrl,   "Location / Address"),
-
-                // ── Read-only info ───────────────────────
-                _readOnlyField("Email",          _email),
-                _readOnlyField("Water Source",   _waterSource),
-                _readOnlyField("Household Size", _householdSize),
-
-                const SizedBox(height: 20),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      backgroundColor: const Color(0xFF0A1B6F),
-                      disabledBackgroundColor: Colors.grey[300],
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: isSavingLocal
-                        ? null
-                        : () async {
-                            setSheetState(() => isSavingLocal = true);
-
-                            final result = await AuthService.updateProfile(
-                              name:    nameCtrl.text.trim().isNotEmpty
-                                  ? nameCtrl.text.trim() : null,
-                              phone:   phoneCtrl.text.trim().isNotEmpty
-                                  ? phoneCtrl.text.trim() : null,
-                              address: locCtrl.text.trim().isNotEmpty
-                                  ? locCtrl.text.trim() : null,
-                            );
-
-                            setSheetState(() => isSavingLocal = false);
-
-                            if (result['success']) {
-                              // Update local state
-                              setState(() {
-                                _fullName = nameCtrl.text.trim();
-                                _phone    = phoneCtrl.text.trim();
-                                _location = locCtrl.text.trim();
-                              });
-                              Navigator.pop(sheetCtx);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Profile updated successfully!'),
-                                  backgroundColor: Color(0xFF0A1B6F),
-                                ),
-                              );
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(result['message']),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
-                          },
-                    child: isSavingLocal
-                        ? const SizedBox(
-                            height: 20, width: 20,
-                            child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2))
-                        : const Text(
-                            "Save Changes",
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                          ),
+                  const Text(
+                    "Edit Profile",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
-                ),
 
-                const SizedBox(height: 20),
-              ],
+                  const SizedBox(height: 6),
+
+                  const Text(
+                    'You can update your name, phone and location.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  _editField(nameCtrl,  "Full Name"),
+                  _editField(phoneCtrl, "Phone Number (e.g. +94XXXXXXXXX)"),
+                  _editField(locCtrl,   "Location / Address"),
+
+                  // ── Read-only info ───────────────────────
+                  _readOnlyField("Email",          _email),
+                  _readOnlyField("Water Source",   _waterSource),
+                  _readOnlyField("Household Size", _householdSize),
+
+                  const SizedBox(height: 20),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: const Color(0xFF0A1B6F),
+                        disabledBackgroundColor: Colors.grey[300],
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: isSavingLocal
+                          ? null
+                          : () async {
+                              setSheetState(() => isSavingLocal = true);
+
+                              final result = await AuthService.updateProfile(
+                                name:    nameCtrl.text.trim().isNotEmpty
+                                    ? nameCtrl.text.trim() : null,
+                                phone:   phoneCtrl.text.trim().isNotEmpty
+                                    ? phoneCtrl.text.trim() : null,
+                                address: locCtrl.text.trim().isNotEmpty
+                                    ? locCtrl.text.trim() : null,
+                              );
+
+                              setSheetState(() => isSavingLocal = false);
+
+                              if (result['success']) {
+                                // Update local state
+                                setState(() {
+                                  _fullName = nameCtrl.text.trim();
+                                  _phone    = phoneCtrl.text.trim();
+                                  _location = locCtrl.text.trim();
+                                });
+                                Navigator.pop(sheetCtx);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Profile updated successfully!'),
+                                    backgroundColor: Color(0xFF0A1B6F),
+                                  ),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(result['message']),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            },
+                      child: isSavingLocal
+                          ? const SizedBox(
+                              height: 20, width: 20,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2))
+                          : const Text(
+                              "Save Changes",
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
           );
         },
